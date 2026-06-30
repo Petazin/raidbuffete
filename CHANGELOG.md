@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.1] - 2026-06-30
+
+### Fixed
+- **Error Lua al abrir Reporte de Faltantes**: Corregido el error de WoW `attempt to index field 'iconCaster' (a nil value)` en `UI/Report.lua` que ocurría al reabrir la ventana de reporte cuando el grupo pasaba del estado "todos buffeados" a tener buffs faltantes. Se implementó un elemento de texto de estado dedicado en la ventana en lugar de reutilizar celdas de datos dinámicas.
+
 ## [1.2.0] - 2026-06-30
 
 ### Added

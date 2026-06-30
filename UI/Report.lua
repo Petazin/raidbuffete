@@ -59,22 +59,17 @@ function ReportFrame:UpdateReport()
     local rowIndex = 1
     
     if #missing == 0 then
-        local row = ReportFrame.rows[1]
-        if not row then
-            row = CreateFrame("Frame", nil, ScrollChild)
-            row:SetSize(420, 30)
-            row.text = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-            row.text:SetPoint("CENTER", row, "CENTER", 0, 0)
-            ReportFrame.rows[1] = row
+        if not ReportFrame.noMissingText then
+            ReportFrame.noMissingText = ScrollChild:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+            ReportFrame.noMissingText:SetPoint("CENTER", ScrollFrame, "CENTER", 0, 0)
+            ReportFrame.noMissingText:SetText("|cff00ff00¡Todos los jugadores de la banda están buffeados!|r")
         end
-        row:SetPoint("TOPLEFT", ScrollChild, "TOPLEFT", 0, 0)
-        row.text:SetText("|cff00ff00¡Todos los jugadores de la banda están buffeados!|r")
-        row.text:Show()
-        if row.iconCaster then row.iconCaster:Hide() end
-        if row.iconSpell then row.iconSpell:Hide() end
-        row:Show()
+        ReportFrame.noMissingText:Show()
         yOffset = 30
     else
+        if ReportFrame.noMissingText then
+            ReportFrame.noMissingText:Hide()
+        end
         for _, data in ipairs(missing) do
             local row = ReportFrame.rows[rowIndex]
             if not row then

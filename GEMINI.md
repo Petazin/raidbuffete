@@ -2,6 +2,10 @@
 
 Este archivo registra las decisiones arquitectónicas y el estado del proyecto generado por la IA en el addon RaidBuffet.
 
+## [30/06/2026] v1.2.1 - Corrección de Error Lua en Reporte
+
+- **Hotfix de UI/Report.lua**: Solucionado el error `attempt to index field 'iconCaster' (a nil value)` que se presentaba al abrir el reporte de faltantes cuando la raid pasaba de estar completamente buffeada (estado vacío con texto centralizado) a tener buffs faltantes. Ahora se usa un elemento `noMissingText` dedicado en lugar de mutar la fila 1 de datos.
+
 ## [30/06/2026] v1.2.0 - Shift-Clic, Control de Tanques, Delegación, Grupos Dinámicos y Botón Flotante
 
 - **Asignación Rápida con Shift-Clic**: Programada la propagación automática inteligente de asignaciones de paladín a todas las clases viables de su fila (ej. Shift-Clic en Poderío lo asigna a melés/híbridos, omitiendo a los casters).
