@@ -4,7 +4,7 @@
 ## Author: Petazo / Antigravity
 ## Version: 1.2.0
 ## SavedVariables: RaidBuffetDB
-## X-Curse-Project-ID: [TU_ID_DE_CURSEFORGE]
+## X-Curse-Project-ID: 1592921
 
 
 Locales\Localization.lua
