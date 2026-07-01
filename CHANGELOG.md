@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.1] - 2026-06-30
+
+### Fixed
+- **Error Lua en Sub-Asignaciones**: Solucionado el error `attempt to index global 'Scanner' (a nil value)` en `UI/Grid.lua` que ocurría al hacer clic derecho en las cabeceras para desplegar el panel flotante interactivo de sub-asignación individual, importando localmente el módulo `Scanner` en la cabecera del archivo de UI.
+
 ## [1.3.0] - 2026-06-30
 
 ### Added

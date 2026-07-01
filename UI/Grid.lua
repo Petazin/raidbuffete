@@ -2,6 +2,7 @@ local addonName, addonTable = ...
 local L = addonTable.L
 local Sync = addonTable.Sync
 local Constants = addonTable.Constants
+local Scanner = addonTable.Scanner
 
 local Grid = CreateFrame("Frame", "RaidBuffetGridFrame", UIParent, "BasicFrameTemplateWithInset")
 addonTable.UI = Grid

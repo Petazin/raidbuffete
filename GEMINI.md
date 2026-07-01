@@ -2,6 +2,10 @@
 
 Este archivo registra las decisiones arquitectónicas y el estado del proyecto generado por la IA en el addon RaidBuffet.
 
+## [30/06/2026] v1.3.1 - Corrección de Ámbito de Scanner en UI
+
+- **Hotfix de UI/Grid.lua**: Corregido el fallo `attempt to index global 'Scanner' (a nil value)` que ocurría al procesar el listado dinámico del panel de sub-asignación individual `RefreshList` al intentar comprobar si un jugador es Tanque Principal, mediante la importación local del módulo `Scanner` en la cabecera de `UI/Grid.lua`.
+
 ## [30/06/2026] v1.3.0 - Asignación Individual Contextual (Alt+Clic -> Clic Derecho en Encabezado), Tanques Manuales y Alertas de Salvación
 
 - **Asignación Individual Contextual (Clic Derecho en Encabezado)**:
