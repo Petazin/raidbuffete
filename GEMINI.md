@@ -2,6 +2,10 @@
 
 Este archivo registra las decisiones arquitectónicas y el estado del proyecto generado por la IA en el addon RaidBuffet.
 
+## [30/06/2026] v1.3.2 - Corrección de Detección de Rangos de Hechizos en Libro de Hechizos Local
+
+- **Detección Dinámica de Hechizos por Libro**: Solucionado el problema que impedía que las bendiciones con múltiples rangos de leveo (Poderío, Sabiduría, Luz y Santuario) se mostraran en el menú flotante del paladín local. Dado que la API `IsSpellKnown` exige el SpellID del rango específico actualmente aprendido por el personaje y puede dar falsos negativos con el ID base (Rango 1), se implementó la función auxiliar `IsSpellInSpellbook(spellID)`. Esta realiza una búsqueda por el nombre localizado limpio del hechizo recorriendo dinámicamente las pestañas y ranuras del libro de hechizos del personaje local.
+
 ## [30/06/2026] v1.3.1 - Corrección de Ámbito de Scanner en UI
 
 - **Hotfix de UI/Grid.lua**: Corregido el fallo `attempt to index global 'Scanner' (a nil value)` que ocurría al procesar el listado dinámico del panel de sub-asignación individual `RefreshList` al intentar comprobar si un jugador es Tanque Principal, mediante la importación local del módulo `Scanner` en la cabecera de `UI/Grid.lua`.

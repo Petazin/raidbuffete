@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.2] - 2026-06-30
+
+### Fixed
+- **Detección de Buffs con Múltiples Rangos**: Corregido el problema donde las bendiciones que disponen de rangos progresivos (como Poderío, Sabiduría, Luz y Santuario) no aparecían en el menú de sub-asignación individual del paladín local. Dado que la API `IsSpellKnown` de Blizzard exige el SpellID del rango exacto aprendido, se implementó un escáner recursivo por nombre de hechizo localizado en el libro de hechizos del personaje local, detectando correctamente la presencia del hechizo base independientemente del rango máximo aprendido.
+
 ## [1.3.1] - 2026-06-30
 
 ### Fixed

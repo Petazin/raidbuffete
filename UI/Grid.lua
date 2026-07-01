@@ -646,6 +646,31 @@ contextMenu.buttons = {}
 -- Cerrar el menú de contexto si hacemos clic fuera o cerramos el frame principal
 SubFrame:HookScript("OnHide", function() contextMenu:Hide() end)
 
+local function IsSpellInSpellbook(spellID)
+    local targetName = L:GetSpellInfo(spellID)
+    if not targetName then return false end
+    
+    -- Limpiar el rango en caso de que lo traiga
+    targetName = string.gsub(targetName, " Rango %d+", "")
+    
+    local tabIndex = 1
+    while true do
+        local name, texture, offset, numSlots = GetSpellTabInfo(tabIndex)
+        if not name then break end
+        for i = offset + 1, offset + numSlots do
+            local spellName = GetSpellBookItemName(i, BOOKTYPE_SPELL)
+            if spellName then
+                spellName = string.gsub(spellName, " Rango %d+", "")
+                if spellName == targetName then
+                    return true
+                end
+            end
+        end
+        tabIndex = tabIndex + 1
+    end
+    return false
+end
+
 local function OpenAssignMenu(anchorBtn, casterName, targetName, targetClass)
     -- Limpiar botones anteriores
     for _, btn in ipairs(contextMenu.buttons) do btn:Hide() end
@@ -700,7 +725,7 @@ local function OpenAssignMenu(anchorBtn, casterName, targetName, targetClass)
         local isCasterPlayer = (casterName == UnitName("player"))
         local isKnown = true
         if isCasterPlayer then
-            isKnown = IsSpellKnown(sData.id)
+            isKnown = IsSpellInSpellbook(sData.id)
         end
         
         if isKnown then
