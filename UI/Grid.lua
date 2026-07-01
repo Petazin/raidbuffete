@@ -7,7 +7,7 @@ local Scanner = addonTable.Scanner
 local Grid = CreateFrame("Frame", "RaidBuffetGridFrame", UIParent, "BasicFrameTemplateWithInset")
 addonTable.UI = Grid
 
-Grid:SetSize(460, 300)
+Grid:SetSize(520, 300)
 Grid:SetPoint("CENTER", UIParent, "CENTER")
 Grid:SetMovable(true)
 Grid:EnableMouse(true)
@@ -570,10 +570,10 @@ function Grid:UpdateGrid()
         
         -- 4. Actualizar estado y visibilidad de los controles inferiores con posiciones fijas para evitar solapamientos
         showAllCheck:SetPoint("BOTTOMLEFT", 10, 6)
-        reportBtn:SetPoint("BOTTOMLEFT", 185, 8)
+        reportBtn:SetPoint("BOTTOMLEFT", 175, 8)
         
         -- Anclar la casilla de delegado
-        delegateContainer:SetPoint("BOTTOMLEFT", 275, 8)
+        delegateContainer:SetPoint("BOTTOMLEFT", 260, 8)
         delegateContainer:Show()
         
         if UnitIsGroupLeader("player") or not IsInGroup() then
@@ -629,7 +629,7 @@ end)
 if not okMenu then
     contextMenu = CreateFrame("Frame", "RaidBuffetSubAssignContextMenu", UIParent)
 end
-contextMenu:SetSize(120, 150)
+contextMenu:SetSize(160, 150)
 contextMenu:SetFrameStrata("DIALOG")
 if contextMenu.SetBackdrop then
     contextMenu:SetBackdrop({
@@ -701,7 +701,7 @@ local function OpenAssignMenu(anchorBtn, casterName, targetName, targetClass)
     local clearBtn = contextMenu.buttons[index]
     if not clearBtn then
         clearBtn = CreateFrame("Button", nil, contextMenu)
-        clearBtn:SetSize(110, 18)
+        clearBtn:SetSize(150, 20)
         clearBtn.text = clearBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
         clearBtn.text:SetPoint("LEFT", 5, 0)
         contextMenu.buttons[index] = clearBtn
@@ -732,12 +732,12 @@ local function OpenAssignMenu(anchorBtn, casterName, targetName, targetClass)
             local btn = contextMenu.buttons[index]
             if not btn then
                 btn = CreateFrame("Button", nil, contextMenu)
-                btn:SetSize(110, 18)
+                btn:SetSize(150, 20)
                 btn.text = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
                 btn.text:SetPoint("LEFT", 5, 0)
                 contextMenu.buttons[index] = btn
             end
-            btn:SetPoint("TOPLEFT", contextMenu, "TOPLEFT", 5, -5 - (index-1)*18)
+            btn:SetPoint("TOPLEFT", contextMenu, "TOPLEFT", 5, -5 - (index-1)*20)
             
             local sName = L:GetSpellInfo(sData.id)
             if sName then
@@ -769,7 +769,7 @@ local function OpenAssignMenu(anchorBtn, casterName, targetName, targetClass)
         end
     end
     
-    contextMenu:SetSize(120, (index-1)*18 + 10)
+    contextMenu:SetSize(160, (index-1)*20 + 10)
     contextMenu:SetPoint("TOPLEFT", anchorBtn, "BOTTOMLEFT", 0, 0)
     contextMenu:Show()
 end

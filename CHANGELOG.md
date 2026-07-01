@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.3] - 2026-06-30
+
+### Changed
+- **Rediseño del Pie de Página (Evitar Solapamientos)**: Ensanchado el ancho del panel principal `Grid` de 460px a 520px y redistribuidas las coordenadas del pie de página (`showAllCheck`, `reportBtn`, `delegateContainer` y Auto-Cast). Esto proporciona un espacio horizontal holgado que elimina cualquier colisión o amontonamiento visual entre la caja del Co-Asignador y el botón de Auto-Cast.
+- **Optimización del Menú Contextual de Sub-Asignaciones**: Aumentado el ancho del menú contextual de 120px a 160px y el tamaño de sus botones a 150x20px con un espaciado vertical homogéneo de 20px. Esto garantiza que las cadenas de texto largas (como `"Bendición de sabiduría"` o `"Bendición de salvación"`) quepan holgadamente dentro del panel sin salirse por los bordes ni superponerse verticalmente.
+
 ## [1.3.2] - 2026-06-30
 
 ### Fixed

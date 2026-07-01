@@ -2,6 +2,11 @@
 
 Este archivo registra las decisiones arquitectónicas y el estado del proyecto generado por la IA en el addon RaidBuffet.
 
+## [30/06/2026] v1.3.3 - Rediseño del Pie de Página y Pulido del Menú Contextual de Sub-Asignaciones
+
+- **Rediseño del Pie de Página**: Ensanchada la ventana principal `Grid` de 460px a 520px de ancho para proporcionar mayor holgura horizontal. Se reubicaron las coordenadas X absolutas en `UpdateGrid()` (`showAllCheck` en 10, `reportBtn` en 175 y `delegateContainer` en 260), alejándolos de la esquina derecha para eliminar por completo la superposición y colisión visual del botón de Auto-Cast y su texto de estado con el cuadro de Co-Asignador.
+- **Pulido del Menú Contextual**: Modificado el tamaño base de `contextMenu` a 160px de ancho (estaba en 120px) y el tamaño de sus botones de acción a 150x20px con un paso vertical de 20px (en lugar de 18px). Esto asegura que todas las bendiciones largas localizadas al español (como `"Bendición de sabiduría"`) entren cómodamente dentro del marco del menú y elimina cualquier pisado o colisión visual de texto entre filas consecutivas.
+
 ## [30/06/2026] v1.3.2 - Corrección de Detección de Rangos de Hechizos en Libro de Hechizos Local
 
 - **Detección Dinámica de Hechizos por Libro**: Solucionado el problema que impedía que las bendiciones con múltiples rangos de leveo (Poderío, Sabiduría, Luz y Santuario) se mostraran en el menú flotante del paladín local. Dado que la API `IsSpellKnown` exige el SpellID del rango específico actualmente aprendido por el personaje y puede dar falsos negativos con el ID base (Rango 1), se implementó la función auxiliar `IsSpellInSpellbook(spellID)`. Esta realiza una búsqueda por el nombre localizado limpio del hechizo recorriendo dinámicamente las pestañas y ranuras del libro de hechizos del personaje local.
