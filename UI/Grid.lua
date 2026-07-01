@@ -436,11 +436,16 @@ function Grid:UpdateGrid()
                     
                     header.labels = {}
                     for i = 1, 9 do
-                        local lbl = header:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-                        lbl:SetPoint("LEFT", header.name, "RIGHT", (i-1)*34, 0)
-                        lbl:SetWidth(28)
-                        lbl:SetJustifyH("CENTER")
-                        header.labels[i] = lbl
+                        local btn = CreateFrame("Button", nil, header)
+                        btn:SetSize(28, 20)
+                        btn:SetPoint("LEFT", header.name, "RIGHT", (i-1)*34, 0)
+                        
+                        btn.text = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+                        btn.text:SetPoint("CENTER", 0, 0)
+                        
+                        btn:RegisterForClicks("RightButtonUp")
+                        
+                        header.labels[i] = btn
                     end
                     Grid.headers[headerIndex] = header
                 end
@@ -452,21 +457,29 @@ function Grid:UpdateGrid()
                 local maxCols = (targetType == "CLASS") and 9 or maxRaidGroups
                 
                 for i = 1, 9 do
-                    local lbl = header.labels[i]
+                    local btn = header.labels[i]
                     if i <= maxCols then
+                        local targetID
                         if targetType == "CLASS" then
-                            local tClass = Constants.ClassOrder[i]
-                            local locClass = L:GetClassName(tClass)
-                            lbl:SetText(string.sub(locClass, 1, 3))
-                            local color = GetClassColorObj(tClass)
-                            lbl:SetTextColor(color.r, color.g, color.b)
+                            targetID = Constants.ClassOrder[i]
+                            local locClass = L:GetClassName(targetID)
+                            btn.text:SetText(string.sub(locClass, 1, 3))
+                            local color = GetClassColorObj(targetID)
+                            btn.text:SetTextColor(color.r, color.g, color.b)
                         else
-                            lbl:SetText("G" .. i)
-                            lbl:SetTextColor(1, 0.8, 0)
+                            targetID = "GROUP_" .. i
+                            btn.text:SetText("G" .. i)
+                            btn.text:SetTextColor(1, 0.8, 0)
                         end
-                        lbl:Show()
+                        
+                        btn:SetScript("OnClick", function(self, button)
+                            if button == "RightButton" then
+                                Grid:OpenSubAssignFrame(self, classType, targetID)
+                            end
+                        end)
+                        btn:Show()
                     else
-                        lbl:Hide()
+                        btn:Hide()
                     end
                 end
                 header:Show()
@@ -578,6 +591,379 @@ function Grid:UpdateGrid()
     if not success then
         print("|cffff0000[RaidBuffet] Error en UpdateGrid:|r", err)
     end
+end
+
+-- ============================================================================
+-- VENTANA DE SUB-ASIGNACIONES INDIVIDUALES (MOCKUP v1.3.0)
+-- ============================================================================
+local SubFrame = CreateFrame("Frame", "RaidBuffetSubAssignFrame", UIParent, "BasicFrameTemplateWithInset")
+SubFrame:SetSize(340, 240)
+SubFrame:SetPoint("CENTER", UIParent, "CENTER", 100, 0)
+SubFrame:SetMovable(true)
+SubFrame:EnableMouse(true)
+SubFrame:RegisterForDrag("LeftButton")
+SubFrame:SetScript("OnDragStart", SubFrame.StartMoving)
+SubFrame:SetScript("OnDragStop", SubFrame.StopMovingOrSizing)
+SubFrame:Hide()
+
+SubFrame.title = SubFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+SubFrame.title:SetPoint("CENTER", SubFrame.TitleBg, "CENTER", 0, 0)
+
+local SubScrollFrame = CreateFrame("ScrollFrame", "RaidBuffetSubAssignScrollFrame", SubFrame, "UIPanelScrollFrameTemplate")
+SubScrollFrame:SetPoint("TOPLEFT", 10, -35)
+SubScrollFrame:SetPoint("BOTTOMRIGHT", -30, 10)
+
+local SubScrollChild = CreateFrame("Frame", "RaidBuffetSubAssignScrollChild", SubScrollFrame)
+SubScrollChild:SetSize(280, 1)
+SubScrollFrame:SetScrollChild(SubScrollChild)
+
+SubFrame.rows = {}
+SubFrame.headers = {}
+
+-- Menú de contexto personalizado para asignaciones individuales
+local contextMenu
+local okMenu, errMenu = pcall(function()
+    contextMenu = CreateFrame("Frame", "RaidBuffetSubAssignContextMenu", UIParent, "BackdropTemplate")
+end)
+if not okMenu then
+    contextMenu = CreateFrame("Frame", "RaidBuffetSubAssignContextMenu", UIParent)
+end
+contextMenu:SetSize(120, 150)
+contextMenu:SetFrameStrata("DIALOG")
+if contextMenu.SetBackdrop then
+    contextMenu:SetBackdrop({
+        bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
+        tile = true, tileSize = 16, edgeSize = 16,
+        insets = { left = 4, right = 4, top = 4, bottom = 4 }
+    })
+    contextMenu:SetBackdropColor(0, 0, 0, 0.95)
+end
+contextMenu:Hide()
+contextMenu.buttons = {}
+
+-- Cerrar el menú de contexto si hacemos clic fuera o cerramos el frame principal
+SubFrame:HookScript("OnHide", function() contextMenu:Hide() end)
+
+local function OpenAssignMenu(anchorBtn, casterName, targetName, targetClass)
+    -- Limpiar botones anteriores
+    for _, btn in ipairs(contextMenu.buttons) do btn:Hide() end
+    
+    -- Hechizos individuales pequeños de paladín
+    local spells = {
+        { id = 20217, sup = 25898 }, -- Reyes
+        { id = 19977, sup = 25890 }, -- Luz
+        { id = 19740, sup = 27141 }, -- Poderío
+        { id = 1038,  sup = 25895 }, -- Salvación
+        { id = 19742, sup = 27143 }, -- Sabiduría
+        { id = 20911, sup = 25899 }  -- Santuario
+    }
+    
+    -- Recopilar bendiciones superiores asignadas por todos los paladines de la raid a esta clase
+    local activeSuperiors = {}
+    for pName, targets in pairs(addonTable.Assignments["PALADIN"] or {}) do
+        for tID, sID in pairs(targets) do
+            if tID == targetClass then
+                activeSuperiors[sID] = true
+            end
+        end
+    end
+    
+    local index = 1
+    
+    -- Botón de Heredar de Clase
+    local clearBtn = contextMenu.buttons[index]
+    if not clearBtn then
+        clearBtn = CreateFrame("Button", nil, contextMenu)
+        clearBtn:SetSize(110, 18)
+        clearBtn.text = clearBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        clearBtn.text:SetPoint("LEFT", 5, 0)
+        contextMenu.buttons[index] = clearBtn
+    end
+    clearBtn:SetPoint("TOPLEFT", contextMenu, "TOPLEFT", 5, -5)
+    clearBtn.text:SetText("|cffaaaaaaHeredar clase|r")
+    clearBtn:SetScript("OnClick", function()
+        if addonTable.Assignments["PALADIN"] and addonTable.Assignments["PALADIN"][casterName] then
+            addonTable.Assignments["PALADIN"][casterName][targetName] = nil
+            Sync:SendAssignment("PALADIN", casterName, targetName, "CLEAR")
+            Grid:UpdateGrid()
+            SubFrame:RefreshList()
+        end
+        contextMenu:Hide()
+    end)
+    clearBtn:Show()
+    index = index + 1
+    
+    -- Añadir bendiciones
+    for _, sData in ipairs(spells) do
+        local isCasterPlayer = (casterName == UnitName("player"))
+        local isKnown = true
+        if isCasterPlayer then
+            isKnown = IsSpellKnown(sData.id)
+        end
+        
+        if isKnown then
+            local btn = contextMenu.buttons[index]
+            if not btn then
+                btn = CreateFrame("Button", nil, contextMenu)
+                btn:SetSize(110, 18)
+                btn.text = btn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+                btn.text:SetPoint("LEFT", 5, 0)
+                contextMenu.buttons[index] = btn
+            end
+            btn:SetPoint("TOPLEFT", contextMenu, "TOPLEFT", 5, -5 - (index-1)*18)
+            
+            local sName = L:GetSpellInfo(sData.id)
+            if sName then
+                sName = string.gsub(sName, " Rango %d+", "")
+                
+                -- Ayuda de no-colisión (texto verde con asterisco si no colisiona con superiors)
+                local collides = activeSuperiors[sData.sup] ~= nil
+                local displayName = sName
+                if not collides then
+                    displayName = "|cff00ff00* " .. sName .. "|r"
+                else
+                    displayName = "|cffaaaaaa" .. sName .. "|r"
+                end
+                
+                btn.text:SetText(displayName)
+                btn:SetScript("OnClick", function()
+                    if not addonTable.Assignments["PALADIN"] then addonTable.Assignments["PALADIN"] = {} end
+                    if not addonTable.Assignments["PALADIN"][casterName] then addonTable.Assignments["PALADIN"][casterName] = {} end
+                    
+                    addonTable.Assignments["PALADIN"][casterName][targetName] = sData.id
+                    Sync:SendAssignment("PALADIN", casterName, targetName, sData.id)
+                    Grid:UpdateGrid()
+                    SubFrame:RefreshList()
+                    contextMenu:Hide()
+                end)
+                btn:Show()
+                index = index + 1
+            end
+        end
+    end
+    
+    contextMenu:SetSize(120, (index-1)*18 + 10)
+    contextMenu:SetPoint("TOPLEFT", anchorBtn, "BOTTOMLEFT", 0, 0)
+    contextMenu:Show()
+end
+
+function SubFrame:RefreshList()
+    -- Ocultar filas y cabeceras anteriores
+    for _, row in ipairs(SubFrame.rows) do row:Hide() end
+    for _, h in ipairs(SubFrame.headers) do h:Hide() end
+    
+    local targetClass = SubFrame.targetClass
+    if not targetClass then return end
+    
+    -- 1. Recopilar jugadores reales de la clase
+    local players = {}
+    if IsInRaid() then
+        for i = 1, GetNumGroupMembers() do
+            local name, _, subgroup, _, _, classFileName = GetRaidRosterInfo(i)
+            if name and classFileName == targetClass then
+                name = string.match(name, "([^%-]+)")
+                table.insert(players, { name = name, class = classFileName, unit = "raid" .. i })
+            end
+        end
+    elseif IsInGroup() then
+        for i = 1, GetNumSubgroupMembers() do
+            local unit = "party" .. i
+            local name = UnitName(unit)
+            local _, classFileName = UnitClass(unit)
+            if name and classFileName == targetClass then
+                name = string.match(name, "([^%-]+)")
+                table.insert(players, { name = name, class = classFileName, unit = unit })
+            end
+        end
+        local name = UnitName("player")
+        local _, classFileName = UnitClass("player")
+        if name and classFileName == targetClass then
+            name = string.match(name, "([^%-]+)")
+            table.insert(players, { name = name, class = classFileName, unit = "player" })
+        end
+    else
+        local name = UnitName("player")
+        local _, classFileName = UnitClass("player")
+        if name and classFileName == targetClass then
+            name = string.match(name, "([^%-]+)")
+            table.insert(players, { name = name, class = classFileName, unit = "player" })
+        end
+    end
+    
+    -- 2. Recopilar paladines activos
+    local paladins = {}
+    if IsInRaid() then
+        for i = 1, GetNumGroupMembers() do
+            local name, _, _, _, _, classFileName = GetRaidRosterInfo(i)
+            if name and classFileName == "PALADIN" then
+                name = string.match(name, "([^%-]+)")
+                table.insert(paladins, name)
+            end
+        end
+    elseif IsInGroup() then
+        for i = 1, GetNumSubgroupMembers() do
+            local unit = "party" .. i
+            local name = UnitName(unit)
+            local _, classFileName = UnitClass(unit)
+            if name and classFileName == "PALADIN" then
+                name = string.match(name, "([^%-]+)")
+                table.insert(paladins, name)
+            end
+        end
+        local name = UnitName("player")
+        local _, classFileName = UnitClass("player")
+        if name and classFileName == "PALADIN" then
+            name = string.match(name, "([^%-]+)")
+            table.insert(paladins, name)
+        end
+    else
+        local name = UnitName("player")
+        local _, classFileName = UnitClass("player")
+        if name and classFileName == "PALADIN" then
+            name = string.match(name, "([^%-]+)")
+            table.insert(paladins, name)
+        end
+    end
+    
+    if #players == 0 or #paladins == 0 then
+        local row = SubFrame.rows[1]
+        if not row then
+            row = CreateFrame("Frame", nil, SubScrollChild)
+            row:SetSize(300, 24)
+            row.name = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+            row.name:SetPoint("CENTER", row, "CENTER", 0, 0)
+            SubFrame.rows[1] = row
+        end
+        row.name:SetText("|cffaaaaaaNo hay jugadores o paladines activos|r")
+        row.name:Show()
+        row:SetPoint("TOPLEFT", SubScrollChild, "TOPLEFT", 0, -5)
+        row:Show()
+        SubScrollChild:SetHeight(30)
+        return
+    end
+    
+    -- 3. Dibujar cabeceras de columnas (Paladines)
+    for i, palName in ipairs(paladins) do
+        local h = SubFrame.headers[i]
+        if not h then
+            h = CreateFrame("Button", nil, SubScrollChild)
+            h:SetSize(36, 16)
+            h.text = h:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            h.text:SetPoint("CENTER", 0, 0)
+            SubFrame.headers[i] = h
+        end
+        h:SetPoint("TOPLEFT", SubScrollChild, "TOPLEFT", 120 + (i-1)*40, -5)
+        h.text:SetText(string.sub(palName, 1, 4))
+        h.text:SetTextColor(0.96, 0.55, 0.73) -- Color de clase Paladín
+        
+        -- Tooltip con nombre completo
+        h:SetScript("OnEnter", function(self)
+            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            GameTooltip:ClearLines()
+            GameTooltip:AddLine(palName, 0.96, 0.55, 0.73)
+            GameTooltip:Show()
+        end)
+        h:SetScript("OnLeave", function() GameTooltip:Hide() end)
+        h:Show()
+    end
+    
+    -- 4. Dibujar filas de jugadores
+    local yOffset = 25
+    for rowIndex, uData in ipairs(players) do
+        local row = SubFrame.rows[rowIndex]
+        if not row then
+            row = CreateFrame("Frame", nil, SubScrollChild)
+            row:SetSize(300, 24)
+            
+            row.name = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+            row.name:SetPoint("LEFT", 5, 0)
+            row.name:SetWidth(110)
+            row.name:SetJustifyH("LEFT")
+            
+            row.buttons = {}
+            for pIdx = 1, 5 do
+                local btn = CreateFrame("Button", nil, row)
+                btn:SetSize(20, 20)
+                btn:SetPoint("LEFT", row.name, "RIGHT", (pIdx-1)*40 + 8, 0)
+                
+                btn.icon = btn:CreateTexture(nil, "ARTWORK")
+                btn.icon:SetAllPoints(btn)
+                
+                row.buttons[pIdx] = btn
+            end
+            SubFrame.rows[rowIndex] = row
+        end
+        row:SetPoint("TOPLEFT", SubScrollChild, "TOPLEFT", 0, -yOffset)
+        
+        -- Nombre con marca de Tanque Principal
+        local isMT = Scanner:IsMainTank(uData.unit)
+        local dispName = uData.name
+        if isMT then
+            dispName = "|cff00ffff[T]|r " .. dispName
+        end
+        row.name:SetText(dispName)
+        
+        -- Configurar botones para cada paladín
+        for pIdx = 1, 5 do
+            local btn = row.buttons[pIdx]
+            if pIdx <= #paladins then
+                local palName = paladins[pIdx]
+                
+                local assignedSpell = nil
+                local isIndividual = false
+                if addonTable.Assignments["PALADIN"] and addonTable.Assignments["PALADIN"][palName] then
+                    assignedSpell = addonTable.Assignments["PALADIN"][palName][uData.name]
+                    if assignedSpell then
+                        isIndividual = true
+                    else
+                        assignedSpell = addonTable.Assignments["PALADIN"][palName][targetClass]
+                    end
+                end
+                
+                if assignedSpell and assignedSpell ~= "CLEAR" and assignedSpell ~= 0 then
+                    local _, icon = L:GetSpellInfo(assignedSpell)
+                    btn.icon:SetTexture(icon)
+                    if isIndividual then
+                        btn.icon:SetAlpha(1.0) -- Asignación individual explícita
+                    else
+                        btn.icon:SetAlpha(0.35) -- Heredado de la clase
+                    end
+                else
+                    btn.icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+                    btn.icon:SetAlpha(0.12)
+                end
+                
+                btn:SetScript("OnClick", function()
+                    if not HasEditPermissions() then
+                        print("|cffff0000[RaidBuffet]|r No tienes permisos de edición.")
+                        return
+                    end
+                    OpenAssignMenu(btn, palName, uData.name, targetClass)
+                end)
+                btn:Show()
+            else
+                btn:Hide()
+            end
+        end
+        row:Show()
+        yOffset = yOffset + 24
+    end
+    SubScrollChild:SetHeight(yOffset + 10)
+end
+
+function Grid:OpenSubAssignFrame(anchorFrame, classType, targetClass)
+    if classType ~= "PALADIN" then
+        print("|cffff0000[RaidBuffet]|r Las asignaciones individuales de bendiciones pequeñas solo son aplicables para la clase Paladín.")
+        return
+    end
+    
+    SubFrame.targetClass = targetClass
+    SubFrame.title:SetText("Asignación Individual: " .. (L:GetClassName(targetClass) or targetClass))
+    SubFrame:ClearAllPoints()
+    SubFrame:SetPoint("TOPLEFT", anchorFrame, "BOTTOMLEFT", -50, -5)
+    SubFrame:RefreshList()
+    SubFrame:Show()
 end
 
 showAllCheck:SetScript("OnShow", function(self) if RaidBuffetDB then self:SetChecked(RaidBuffetDB.ShowAllClasses) end end)

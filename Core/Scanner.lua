@@ -49,54 +49,76 @@ function Scanner:IsMainTank(unit)
     return mtName and uName and mtName == uName
 end
 
--- Busca una bendición pequeña alternativa aprendida por el paladín que no colisione con las superiores de la clase
-function Scanner:GetAlternativeBlessingForTank(casterClass, casterName, targetClass)
-    if casterClass ~= "PALADIN" then return nil end
+local lastWhisperTimes = {} -- Cooldown de 60 segundos para evitar spam por tanque
+
+-- Escanea la raid buscando tanques con la Bendición de Salvación activa y les susurra para que la cancelen
+function Scanner:CheckTankSalvationAlerts()
+    if not IsInGroup() then return end
     
-    -- Obtener bendiciones superiores asignadas por toda la raid a esta clase de tanques
-    local activeSpells = {}
-    for pName, targets in pairs(addonTable.Assignments["PALADIN"] or {}) do
-        for tID, sID in pairs(targets) do
-            if tID == targetClass then
-                local sName = L:GetSpellInfo(sID)
-                if sName then
-                    activeSpells[sName] = true
-                end
+    local _, myClass = UnitClass("player")
+    if myClass ~= "PALADIN" then return end
+    
+    local myName = UnitName("player")
+    local assignments = addonTable.Assignments["PALADIN"] and addonTable.Assignments["PALADIN"][myName]
+    if not assignments then return end
+    
+    -- Recopilar todas las unidades de la raid
+    local units = {}
+    if IsInRaid() then
+        for i = 1, GetNumGroupMembers() do
+            local name, _, _, _, _, classFileName = GetRaidRosterInfo(i)
+            if name and classFileName then
+                name = string.match(name, "([^%-]+)")
+                table.insert(units, { unit = "raid" .. i, name = name, class = classFileName })
             end
+        end
+    elseif IsInGroup() then
+        for i = 1, GetNumSubgroupMembers() do
+            local unit = "party" .. i
+            local name = UnitName(unit)
+            local _, classFileName = UnitClass(unit)
+            if name and classFileName then
+                name = string.match(name, "([^%-]+)")
+                table.insert(units, { unit = unit, name = name, class = classFileName })
+            end
+        end
+        local name = UnitName("player")
+        local _, classFileName = UnitClass("player")
+        if name and classFileName then
+            name = string.match(name, "([^%-]+)")
+            table.insert(units, { unit = "player", name = name, class = classFileName })
         end
     end
     
-    -- Lista de candidatos pequeños (SpellID base para IsSpellKnown)
-    -- 20911 (Santuario), 20217 (Reyes), 19740 (Poderío), 19742 (Sabiduría), 19977 (Luz)
-    local candidates = { 20911, 20217, 19740, 19742, 19977 }
-    for _, altID in ipairs(candidates) do
-        if IsSpellKnown(altID) then
-            local altName = L:GetSpellInfo(altID)
-            if altName then
-                -- Comprobar si el nombre del buff (tanto individual como superior) está asignado a la clase
-                -- Limpiar el término "superior" / "Superior" para evitar colisión por nombre parcial
-                local cleanAltName = string.gsub(altName, " [sS]uperior", "")
+    for _, uData in ipairs(units) do
+        if Scanner:IsMainTank(uData.unit) then
+            -- Solo avisa si este paladín local le tiene asignado algún buff a su clase o a él individualmente
+            local hasAssignment = assignments[uData.class] ~= nil or assignments[uData.name] ~= nil
+            if hasAssignment then
+                local spellSalvationLarge = L:GetSpellInfo(25895)
+                local spellSalvationSmall = L:GetSpellInfo(1038)
                 
-                local collides = false
-                for activeName, _ in pairs(activeSpells) do
-                    local cleanActive = string.gsub(activeName, " [sS]uperior", "")
-                    if cleanActive == cleanAltName then
-                        collides = true
-                        break
+                local hasSalv = (spellSalvationLarge and UnitHasBuff(uData.unit, spellSalvationLarge)) or 
+                               (spellSalvationSmall and UnitHasBuff(uData.unit, spellSalvationSmall))
+                               
+                if hasSalv then
+                    local now = GetTime()
+                    local lastTime = lastWhisperTimes[uData.name] or 0
+                    if now - lastTime > 60 then
+                        SendChatMessage("[RaidBuffet]: Eres Tanque Principal y tienes activa la Bendición de Salvación. Por favor, cancélala (/cancelaura Bendición de salvación).", "WHISPER", nil, uData.name)
+                        lastWhisperTimes[uData.name] = now
                     end
                 end
-                
-                if not collides then
-                    return altID
-                end
             end
         end
     end
-    return nil
 end
 
 -- Escanea el grupo o banda y devuelve {unit, spellName, playerName} del primer jugador que necesite un buff asignado
 function Scanner:GetNextBuffTarget()
+    -- Ejecutar alerta de salvación en tanques en segundo plano
+    Scanner:CheckTankSalvationAlerts()
+
     local _, myClass = UnitClass("player")
     local myName = UnitName("player")
     
@@ -137,39 +159,24 @@ function Scanner:GetNextBuffTarget()
                 targetID = "GROUP_" .. data.subgroup
             end
             
+            -- Prioridad de buff individual sobre el de la clase
             local spellID = assignments[targetID]
-            if spellID then
+            local pName = UnitName(unit)
+            if pName then
+                pName = string.match(pName, "([^%-]+)")
+                if myClass == "PALADIN" and assignments[pName] then
+                    spellID = assignments[pName]
+                end
+            end
+            
+            if spellID and spellID ~= "CLEAR" and spellID ~= 0 then
                 local spellName = L:GetSpellInfo(spellID)
                 if spellName then
-                    -- Comprobar si es la Bendición de Salvación en un Tanque Principal
-                    if spellID == 25895 and Scanner:IsMainTank(unit) then
-                        -- 1. Primero se bufea la clase con Salvación Superior de forma normal
-                        local hasSalv = UnitHasBuff(unit, L:GetSpellInfo(25895)) or UnitHasBuff(unit, L:GetSpellInfo(1038))
-                        if not hasSalv then
-                            -- Si aún no la tiene, se castea de forma normal
-                            local finalUnit = UnitIsUnit(unit, "player") and "player" or unit
-                            local playerName = UnitName(unit)
-                            return finalUnit, spellName, playerName
-                        else
-                            -- 2. Si ya tiene Salvación Superior activa, se busca sobrescribirla con la pequeña alternativa
-                            local altSpellID = Scanner:GetAlternativeBlessingForTank(myClass, myName, classFileName)
-                            if altSpellID then
-                                local altSpellName = L:GetSpellInfo(altSpellID)
-                                if altSpellName and not UnitHasBuff(unit, altSpellName) then
-                                    local finalUnit = UnitIsUnit(unit, "player") and "player" or unit
-                                    local playerName = UnitName(unit)
-                                    return finalUnit, altSpellName, playerName
-                                end
-                            end
-                        end
-                    else
-                        -- Comportamiento normal para no-tanques o buffs ordinarios
-                        local hasBuff = UnitHasBuff(unit, spellName)
-                        if not hasBuff then
-                            local finalUnit = UnitIsUnit(unit, "player") and "player" or unit
-                            local playerName = UnitName(unit)
-                            return finalUnit, spellName, playerName
-                        end
+                    local hasBuff = UnitHasBuff(unit, spellName)
+                    if not hasBuff then
+                        local finalUnit = UnitIsUnit(unit, "player") and "player" or unit
+                        local playerName = UnitName(unit)
+                        return finalUnit, spellName, playerName
                     end
                 end
             end
@@ -236,22 +243,39 @@ function Scanner:GetMissingBuffsReport()
             if casterExists then
                 for targetID, spellID in pairs(targets) do
                     local spellName = L:GetSpellInfo(spellID)
-                    if spellName then
+                    if spellName and spellID ~= "CLEAR" and spellID ~= 0 then
                         local targetClass = nil
                         local targetGroup = nil
+                        local targetPlayer = nil
+                        
+                        local isClass = false
+                        for _, c in ipairs(Constants.ClassOrder) do
+                            if c == targetID then
+                                isClass = true
+                                break
+                            end
+                        end
                         
                         if string.find(targetID, "GROUP_") then
                             targetGroup = tonumber(string.match(targetID, "GROUP_(%d+)"))
-                        else
-                            targetClass = targetID
-                        end
+                          elseif isClass then
+                              targetClass = targetID
+                          else
+                              targetPlayer = targetID
+                          end
                         
                         local missingPlayers = {}
                         
                         for _, uData in ipairs(units) do
                             local match = false
-                            if targetClass and uData.class == targetClass then
+                            if targetPlayer and uData.name == targetPlayer then
                                 match = true
+                            elseif targetClass and uData.class == targetClass then
+                                -- Si hay asignación individual para este jugador por este caster, ignoramos la regla de clase
+                                local hasIndividual = targets[uData.name] ~= nil
+                                if not hasIndividual then
+                                    match = true
+                                end
                             elseif targetGroup and uData.subgroup == targetGroup then
                                 match = true
                             end
@@ -261,29 +285,13 @@ function Scanner:GetMissingBuffsReport()
                                 local isConnected = UnitIsConnected(uData.unit)
                                 
                                 if isConnected and not isDeadOrGhost then
-                                    -- Caso especial: Salvación en un Tanque Principal
-                                    if spellID == 25895 and Scanner:IsMainTank(uData.unit) then
-                                        local hasSalv = UnitHasBuff(uData.unit, L:GetSpellInfo(25895)) or UnitHasBuff(uData.unit, L:GetSpellInfo(1038))
-                                        if not hasSalv then
-                                            -- Aún no tiene la Salvación Superior masiva
-                                            table.insert(missingPlayers, uData.name)
+                                    local hasBuff = UnitHasBuff(uData.unit, spellName)
+                                    if not hasBuff then
+                                        local isMT = Scanner:IsMainTank(uData.unit)
+                                        local isSalv = (spellID == 25895 or spellID == 1038)
+                                        if isMT and isSalv then
+                                            table.insert(missingPlayers, uData.name .. " (¡Tanque con Salvación!)")
                                         else
-                                            -- Ya tiene la Salvación Superior masiva. Falta el alternativo para pisarla
-                                            local altSpellID = Scanner:GetAlternativeBlessingForTank(casterClass, casterName, uData.class)
-                                            if altSpellID then
-                                                local altSpellName = L:GetSpellInfo(altSpellID)
-                                                if altSpellName and not UnitHasBuff(uData.unit, altSpellName) then
-                                                    table.insert(missingPlayers, uData.name .. " (Pisar Salvación con: " .. altSpellName .. ")")
-                                                end
-                                            else
-                                                -- Si no tiene alternativas configurables
-                                                table.insert(missingPlayers, uData.name .. " (¡Pisar Salvación!)")
-                                            end
-                                        end
-                                    else
-                                        -- Caso normal
-                                        local hasBuff = UnitHasBuff(uData.unit, spellName)
-                                        if not hasBuff then
                                             table.insert(missingPlayers, uData.name)
                                         end
                                     end

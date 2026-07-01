@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.0] - 2026-06-30
+
+### Added
+- **Asignaciones Individuales (Excepciones por Jugador)**: Implementado el panel flotante interactivo `RaidBuffetSubAssignFrame` que se despliega al hacer **Clic Derecho** sobre los encabezados de columna abreviados de clase/grupo (ej: `Cha`, `Gue`, `G1`). Permite asignar de forma manual y explícita bendiciones individuales pequeñas (Poderío, Sabiduría, Reyes, Santuario, Luz, o Ninguno) a jugadores concretos de la raid (ej: para solventar chamanes melee vs chamanes caster/healer).
+- **Control de Seguridad de Tanques con Susurro Automático**:
+  - Detección reactiva de Tanques Principales (`MAINTANK`) que conserven el buff de *Bendición de Salvación* activa.
+  - El addon envía automáticamente un susurro de alerta al tanque (`[RaidBuffet]: Eres Tanque Principal y tienes activa la Bendición de Salvación. Por favor, cancélala (/cancelaura Bendición de salvación)`) con un temporizador de cooldown interno de 60 segundos por tanque para evitar spam.
+- **Sincronización P2P Avanzada**: Actualizado el canal de red para propagar y sincronizar las asignaciones individuales por nombre de jugador de manera síncrona en toda la raid.
+- **Visualizador de Ayuda de No-Colisión**: En el menú de sub-asignación individual, se resaltan en color verde claro con un asterisco `*` las bendiciones pequeñas que están "libres de colisión" (cuyas versiones superiores correspondientes no están siendo asignadas por ningún paladín de la raid a esa clase), guiando al asignador de forma inteligente.
+
+### Changed
+- **Desactivado Cálculo Automático de Tanques**: Removida la lógica automática anterior que forzaba bendiciones alternativas de forma rígida en tanques con Salvación. Ahora el motor de Auto-Cast respetará de forma transparente y síncrona tanto las bendiciones grandes generales de clase como las pequeñas individuales configuradas manualmente en el nuevo panel.
+
 ## [1.2.1] - 2026-06-30
 
 ### Fixed

@@ -2,6 +2,22 @@
 
 Este archivo registra las decisiones arquitectónicas y el estado del proyecto generado por la IA en el addon RaidBuffet.
 
+## [30/06/2026] v1.3.0 - Asignación Individual Contextual (Alt+Clic -> Clic Derecho en Encabezado), Tanques Manuales y Alertas de Salvación
+
+- **Asignación Individual Contextual (Clic Derecho en Encabezado)**:
+  - Rediseñados los encabezados de columna abreviados de las clases (`Gue`, `Pí`, `Cha`, etc.) para que actúen como botones interactivos y capturen el clic derecho del ratón.
+  - Al hacer **Clic Derecho** en el encabezado de clase de la fila de un paladín, se despliega la ventana flotante `RaidBuffetSubAssignFrame`.
+  - Esta ventana lista de forma síncrona a todos los miembros reales de esa clase en la raid, mostrando las columnas de paladines activos y sus correspondientes asignaciones para cada jugador.
+  - Al hacer clic en el botón de buff de cada jugador, se abre un submenú contextual para elegir una bendición pequeña. Las bendiciones libres de colisión se resaltan visualmente en verde con un asterisco (`*`) de ayuda inteligente.
+- **Control de Seguridad de Tanques (Susurro Automático)**:
+  - Implementado un escáner periódico reactivo en `Scanner:CheckTankSalvationAlerts()`.
+  - Si un Tanque Principal (`MAINTANK`) conserva el buff de *Bendición de Salvación* activa, el addon le envía un susurro automático: `"[RaidBuffet]: Eres Tanque Principal y tienes activa la Bendición de Salvación. Por favor, cancélala (/cancelaura Bendición de salvación)."`
+  - Se implementó un cooldown de 60 segundos por tanque para prevenir el spam del canal.
+- **Auto-Cast Síncrono Completo**:
+  - Modificado `Scanner:GetNextBuffTarget()` y `Scanner:GetMissingBuffsReport()` para priorizar las asignaciones individuales indexadas por nombre de jugador (`assignments[playerName] = spellID`) por sobre la regla de la clase.
+  - Desactivada la lógica automática "mágica" anterior. Ahora el motor de Auto-Cast del botón visual y flotante integrará y sugerirá de forma secuencial y transparente tanto las bendiciones grandes generales de clase como las pequeñas individuales configuradas manualmente en el panel de sub-asignación.
+- **Sincronización P2P Síncrona**: Actualizado el serializador de sincronización en `Sync.lua` para transmitir de forma nativa los nombres de los jugadores individuales como `target`, manteniendo la grilla individual al día para toda la raid.
+
 ## [30/06/2026] v1.2.1 - Corrección de Error Lua en Reporte
 
 - **Hotfix de UI/Report.lua**: Solucionado el error `attempt to index field 'iconCaster' (a nil value)` que se presentaba al abrir el reporte de faltantes cuando la raid pasaba de estar completamente buffeada (estado vacío con texto centralizado) a tener buffs faltantes. Ahora se usa un elemento `noMissingText` dedicado en lugar de mutar la fila 1 de datos.
