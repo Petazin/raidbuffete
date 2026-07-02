@@ -37,6 +37,35 @@ function ClickCast:CreateSecureButton(parent, name, size, spellID, targetUnit)
         end
     end
     
+    -- Crear frame de brillo y animación de alerta roja intensa/molesta (Doble Capa Incandescente)
+    btn.glowFrame = CreateFrame("Frame", nil, btn)
+    btn.glowFrame:SetSize(size * 2.0, size * 2.0)
+    btn.glowFrame:SetPoint("CENTER", btn, "CENTER", 0, 0)
+    btn.glowFrame:Hide()
+    
+    -- Capa Interna (Núcleo denso de color rojo puro)
+    btn.glow = btn.glowFrame:CreateTexture(nil, "OVERLAY")
+    btn.glow:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
+    btn.glow:SetBlendMode("ADD")
+    btn.glow:SetSize(size * 1.4, size * 1.4)
+    btn.glow:SetPoint("CENTER", btn.glowFrame, "CENTER", 0, 0)
+    btn.glow:SetVertexColor(1, 0, 0, 1)
+    
+    -- Capa Externa (Corona expansiva de color rojo brillante)
+    btn.glowOuter = btn.glowFrame:CreateTexture(nil, "OVERLAY")
+    btn.glowOuter:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
+    btn.glowOuter:SetBlendMode("ADD")
+    btn.glowOuter:SetSize(size * 1.9, size * 1.9)
+    btn.glowOuter:SetPoint("CENTER", btn.glowFrame, "CENTER", 0, 0)
+    btn.glowOuter:SetVertexColor(1, 0.2, 0.2, 0.9)
+    
+    btn.glowAnimGroup = btn.glowFrame:CreateAnimationGroup()
+    local anim = btn.glowAnimGroup:CreateAnimation("Alpha")
+    anim:SetFromAlpha(1.0)
+    anim:SetToAlpha(0.0)
+    anim:SetDuration(0.15) -- Parpadeo veloz tipo estrobo (0.15 segundos)
+    btn.glowAnimGroup:SetLooping("BOUNCE")
+    
     return btn
 end
 
@@ -162,11 +191,19 @@ function ClickCast:UpdateVisualState()
         self.uiBtn.icon:SetTexture(tex)
         self.uiBtn.icon:SetDesaturated(false)
         self.uiBtn:SetAlpha(1)
+        if self.uiBtn.glowFrame then
+            self.uiBtn.glowFrame:Show()
+            self.uiBtn.glowAnimGroup:Play()
+        end
         
         if self.floatBtn then
             self.floatBtn.icon:SetTexture(tex)
             self.floatBtn.icon:SetDesaturated(false)
             self.floatBtn:SetAlpha(1)
+            if self.floatBtn.glowFrame then
+                self.floatBtn.glowFrame:Show()
+                self.floatBtn.glowAnimGroup:Play()
+            end
             
             if RaidBuffetDB and RaidBuffetDB.EnableFloatBtn then
                 self.floatBtn:Show()
@@ -181,11 +218,19 @@ function ClickCast:UpdateVisualState()
         self.uiBtn.icon:SetTexture(tex)
         self.uiBtn.icon:SetDesaturated(true)
         self.uiBtn:SetAlpha(0.6)
+        if self.uiBtn.glowFrame then
+            self.uiBtn.glowFrame:Hide()
+            self.uiBtn.glowAnimGroup:Stop()
+        end
         
         if self.floatBtn then
             self.floatBtn.icon:SetTexture(tex)
             self.floatBtn.icon:SetDesaturated(true)
             self.floatBtn:SetAlpha(0.6)
+            if self.floatBtn.glowFrame then
+                self.floatBtn.glowFrame:Hide()
+                self.floatBtn.glowAnimGroup:Stop()
+            end
             
             if RaidBuffetDB and RaidBuffetDB.EnableFloatBtn then
                 if RaidBuffetDB.FloatVisibilityMode == "MISSING" then

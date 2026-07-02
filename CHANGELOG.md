@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.6.1] - 2026-07-02
+
+### Added
+- **Alerta Visual Crítica (Parpadeo Estrobo y Brillo Rojo de Doble Capa)**: Implementada una baliza incandescente de alerta roja sobre los botones de lanzamiento. Combina dos capas de brillo aditivas (`1.4x` núcleo denso y `1.9x` corona expansiva) animadas a velocidad estroboscópica (`0.15` segundos de ciclo de bounce) para una visibilidad máxima imposible de omitir. Se desactiva y limpia de inmediato al estar todos los buffs al día.
+
+## [1.6.0] - 2026-07-02
+
+### Changed
+- **Diseño Unificado (Paneles Acoplables/Drawers)**: Consolidada toda la interfaz en un único espacio rectangular. El reporte de faltantes (Drawer izquierdo) y la asignación de bendiciones pequeñas (Drawer derecho) ahora se acoplan de forma rígida y solidaria a la ventana principal. Se desplazan juntos y se cierran automáticamente con la grilla principal.
+- **Optimización y Estabilidad**: Eliminado el archivo `UI/Report.lua` e integrada toda su lógica en `UI/Grid.lua`. Solucionado el problema de ámbito de variables y habilitado refresco síncrono al instante tras realizar asignaciones.
+
 ## [1.5.3] - 2026-07-02
 
 ### Changed

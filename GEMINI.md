@@ -2,11 +2,24 @@
 
 Este archivo registra las decisiones arquitectónicas y el estado del proyecto generado por la IA en el addon RaidBuffet.
 
-## [02/07/2026] v1.5.3 - Interacción de Ventanas: Control de Superposición (Toplevel)
+## [02/07/2026] v1.6.1 - Alerta Visual Crítica: Parpadeo Estrobo y Brillo Rojo de Doble Capa
 
-- **Traer Ventana al Frente (`SetToplevel`)**:
-  - Habilitada la propiedad `SetToplevel(true)` en las tres ventanas flotantes del addon: Grilla de Asignaciones (`Grid`), Sub-Asignaciones Individuales (`SubFrame`) y el Reporte de Faltantes (`ReportFrame`).
-  - Esto soluciona de forma nativa la superposición de marcos, de tal manera que al hacer clic sobre cualquier área o cabecera de una ventana, esta se posiciona de forma automática al frente del resto en la pantalla de juego de manera orgánica.
+- **Baliza Incandescente de Alerta Crítica**:
+  - Implementada una técnica de renderizado aditivo de **Doble Capa de Brillo (Double-Layer Glow)** superponiendo dos texturas de proc `"Interface\\Buttons\\UI-ActionButton-Border"` teñidas en rojo puro:
+    - Capa Interna (Núcleo denso): tamaño de escala `1.4x` en rojo puro (`(1, 0, 0, 1)`).
+    - Capa Externa (Corona expansiva): tamaño de escala `1.9x` en rojo brillante (`(1, 0.2, 0.2, 0.9)`).
+  - Configurada una animación de tipo `Alpha` con oscilación a cero (`ToAlpha = 0.0`) y duración ultra-rápida de **`0.15` segundos** (`BOUNCE`), creando un efecto estroboscópico de alerta de baliza de alta densidad imposible de pasar por alto.
+  - El brillo se activa al instante en el botón flotante y el botón principal cuando el scanner detecta buffs faltantes, y se apaga de inmediato al completar las asignaciones.
+
+## [02/07/2026] v1.6.0 - Hito Visual: Diseño Unificado con Paneles Acoplados (Drawers)
+
+- **Centralización e Integración de Ventanas**:
+  - Consolidada la lógica del Reporte de Faltantes directamente dentro de [UI/Grid.lua](file:///d:/BLIZZARD/World/of/Warcraft/_anniversary_/Interface/AddOns/RaidBuffet/UI/Grid.lua) y eliminado el archivo independiente `UI/Report.lua`.
+  - El panel del reporte se acopla rígidamente a la izquierda del marco principal (`TOPRIGHT` de `ReportPanel` al `TOPLEFT` de `Grid`), mientras que el subpanel individual de bendiciones se acopla a la derecha (`TOPLEFT` de `SubFrame` al `TOPRIGHT` de `Grid`).
+  - Al arrastrar el marco principal, todos los paneles laterales acoplados visibles se desplazan juntos síncronamente. Al ocultar la ventana principal con la "X", se cierran todos los paneles automáticamente.
+  - Corregido el problema de ámbito de variables locales (`ReportPanel` nil) y añadido refresco síncrono al final de `UpdateGrid` para actualizar el subpanel y el reporte al instante.
+
+## [02/07/2026] v1.5.3 - Interacción de Ventanas: Control de Superposición (Toplevel)
 
 ## [02/07/2026] v1.5.2 - Bugfix Crítico: Robustez en Inicialización de SubFrame tras Reload
 

@@ -4,6 +4,8 @@ local Sync = addonTable.Sync
 local Constants = addonTable.Constants
 local Scanner = addonTable.Scanner
 
+local ReportPanel, SubFrame
+
 local Grid = CreateFrame("Frame", "RaidBuffetGridFrame", UIParent, "BackdropTemplate")
 Grid:SetToplevel(true)
 addonTable.UI = Grid
@@ -142,11 +144,11 @@ reportBtn:SetScript("OnLeave", function(self)
     self:SetBackdropBorderColor(0.7, 0.5, 0.2, 0.5)
 end)
 reportBtn:SetScript("OnClick", function()
-    if RaidBuffetReportFrame then
-        if RaidBuffetReportFrame:IsShown() then
-            RaidBuffetReportFrame:Hide()
+    if ReportPanel then
+        if ReportPanel:IsShown() then
+            ReportPanel:Hide()
         else
-            RaidBuffetReportFrame:Show()
+            ReportPanel:Show()
         end
     end
 end)
@@ -878,20 +880,22 @@ function Grid:UpdateGrid()
     if not success then
         print("|cffff0000[RaidBuffet] Error en UpdateGrid:|r", err)
     end
+    
+    if SubFrame and SubFrame:IsShown() then
+        SubFrame:RefreshList()
+    end
+    if ReportPanel and ReportPanel:IsShown() then
+        ReportPanel:UpdateReport()
+    end
 end
 
 -- ============================================================================
 -- VENTANA DE SUB-ASIGNACIONES INDIVIDUALES (MOCKUP v1.3.0)
 -- ============================================================================
-local SubFrame = CreateFrame("Frame", "RaidBuffetSubAssignFrame", UIParent, "BackdropTemplate")
-SubFrame:SetToplevel(true)
-SubFrame:SetSize(440, 240)
-SubFrame:SetPoint("CENTER", UIParent, "CENTER", 100, 0)
-SubFrame:SetMovable(true)
+SubFrame = CreateFrame("Frame", "RaidBuffetSubAssignFrame", Grid, "BackdropTemplate")
+SubFrame:SetSize(440, 300)
+SubFrame:SetPoint("TOPLEFT", Grid, "TOPRIGHT", 2, 0)
 SubFrame:EnableMouse(true)
-SubFrame:RegisterForDrag("LeftButton")
-SubFrame:SetScript("OnDragStart", SubFrame.StartMoving)
-SubFrame:SetScript("OnDragStop", SubFrame.StopMovingOrSizing)
 SubFrame:Hide()
 
 SubFrame:SetBackdrop({
@@ -914,11 +918,6 @@ SubFrame.header:SetBackdrop({
 })
 SubFrame.header:SetBackdropColor(0.12, 0.12, 0.12, 1)
 SubFrame.header:SetBackdropBorderColor(0.18, 0.18, 0.18, 1)
-
-SubFrame.header:EnableMouse(true)
-SubFrame.header:RegisterForDrag("LeftButton")
-SubFrame.header:SetScript("OnDragStart", function() SubFrame:StartMoving() end)
-SubFrame.header:SetScript("OnDragStop", function() SubFrame:StopMovingOrSizing() end)
 
 SubFrame.title = SubFrame.header:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 SubFrame.title:SetPoint("LEFT", 10, 0)
@@ -1477,16 +1476,332 @@ function Grid:OpenSubAssignFrame(anchorFrame, classType, targetClass)
         return
     end
     
-    SubFrame.targetClass = targetClass
-    SubFrame.title:SetText("Asignación Individual: " .. (L:GetClassName(targetClass) or targetClass))
-    SubFrame:ClearAllPoints()
-    SubFrame:SetPoint("TOPLEFT", anchorFrame, "BOTTOMLEFT", -50, -5)
-    SubFrame:RefreshList()
-    SubFrame:Show()
+    if SubFrame:IsShown() and SubFrame.targetClass == targetClass then
+        SubFrame:Hide()
+    else
+        SubFrame.targetClass = targetClass
+        SubFrame.title:SetText("Asignación Individual: " .. (L:GetClassName(targetClass) or targetClass))
+        SubFrame:ClearAllPoints()
+        SubFrame:SetPoint("TOPLEFT", Grid, "TOPRIGHT", 2, 0)
+        SubFrame:RefreshList()
+        SubFrame:Show()
+    end
 end
 
 showAllCheck:SetScript("OnShow", function(self) if RaidBuffetDB then self:SetChecked(RaidBuffetDB.ShowAllClasses) end end)
 Grid:SetScript("OnShow", function(self) self:UpdateGrid() end)
+
+-- ============================================================================
+-- PANEL DE REPORTES DE FALTANTES (INTEGRADO - DRAWER IZQUIERDO)
+-- ============================================================================
+ReportPanel = CreateFrame("Frame", "RaidBuffetReportPanel", Grid, "BackdropTemplate")
+ReportPanel:SetSize(300, 300)
+ReportPanel:SetPoint("TOPRIGHT", Grid, "TOPLEFT", -2, 0)
+ReportPanel:SetBackdrop({
+    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+    edgeFile = "Interface\\Buttons\\WHITE8X8",
+    tile = true, tileSize = 16, edgeSize = 1,
+    insets = { left = 0, right = 0, top = 0, bottom = 0 }
+})
+ReportPanel:SetBackdropColor(0.06, 0.06, 0.06, 0.94)
+ReportPanel:SetBackdropBorderColor(0.18, 0.18, 0.18, 1)
+ReportPanel:Hide()
+
+ReportPanel.title = ReportPanel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+ReportPanel.title:SetPoint("TOPLEFT", 10, -8)
+ReportPanel.title:SetText("Reporte de Faltantes")
+ReportPanel.title:SetTextColor(0.8, 0.6, 0.2)
+
+local ReportScrollFrame = CreateFrame("ScrollFrame", "RaidBuffetReportScrollFrame", ReportPanel, "UIPanelScrollFrameTemplate")
+ReportScrollFrame:SetPoint("TOPLEFT", 10, -30)
+ReportScrollFrame:SetPoint("BOTTOMRIGHT", -30, 40)
+
+if _G["RaidBuffetReportScrollFrameScrollBar"] then
+    _G["RaidBuffetReportScrollFrameScrollBar"]:SetAlpha(0)
+    _G["RaidBuffetReportScrollFrameScrollBarScrollUpButton"]:SetAlpha(0)
+    _G["RaidBuffetReportScrollFrameScrollBarScrollDownButton"]:SetAlpha(0)
+end
+
+local ReportScrollChild = CreateFrame("Frame", "RaidBuffetReportScrollChild", ReportScrollFrame)
+ReportScrollChild:SetSize(260, 1)
+ReportScrollFrame:SetScrollChild(ReportScrollChild)
+
+ReportPanel.rows = {}
+
+local function GetClassColorHex(classFileName)
+    local color = GetClassColorObj(classFileName)
+    return string.format("ff%02x%02x%02x", color.r * 255, color.g * 255, color.b * 255)
+end
+
+function ReportPanel:UpdateReport()
+    local missing = Scanner:GetMissingBuffsReport()
+    
+    for _, row in ipairs(ReportPanel.rows) do
+        row:Hide()
+    end
+    
+    local yOffset = 0
+    local rowIndex = 1
+    
+    if #missing == 0 then
+        if not ReportPanel.noMissingText then
+            ReportPanel.noMissingText = ReportScrollChild:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+            ReportPanel.noMissingText:SetPoint("CENTER", ReportScrollFrame, "CENTER", 0, 0)
+            ReportPanel.noMissingText:SetText("|cff00ff00¡Todos buffeados!|r")
+        end
+        ReportPanel.noMissingText:Show()
+    else
+        if ReportPanel.noMissingText then
+            ReportPanel.noMissingText:Hide()
+        end
+        for _, data in ipairs(missing) do
+            local row = ReportPanel.rows[rowIndex]
+            if not row then
+                row = CreateFrame("Frame", nil, ReportScrollChild)
+                row:SetSize(260, 30)
+                
+                row.iconCaster = row:CreateTexture(nil, "ARTWORK")
+                row.iconCaster:SetSize(18, 18)
+                row.iconCaster:SetPoint("LEFT", 5, 0)
+                
+                row.iconSpell = row:CreateTexture(nil, "ARTWORK")
+                row.iconSpell:SetSize(18, 18)
+                row.iconSpell:SetPoint("LEFT", row.iconCaster, "RIGHT", 6, 0)
+                
+                row.text = row:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+                row.text:SetPoint("LEFT", row.iconSpell, "RIGHT", 6, 0)
+                row.text:SetWidth(200)
+                row.text:SetJustifyH("LEFT")
+                row.text:SetWordWrap(true)
+                
+                ReportPanel.rows[rowIndex] = row
+            end
+            
+            row:SetPoint("TOPLEFT", ReportScrollChild, "TOPLEFT", 0, -yOffset)
+            
+            local coords = CLASS_BUTTONS[data.casterClass]
+            if coords then
+                row.iconCaster:SetTexture("Interface\\GLUES\\CHARACTERCREATE\\UI-CHARACTERCREATE-CLASSES")
+                row.iconCaster:SetTexCoord(unpack(coords))
+            else
+                row.iconCaster:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
+            end
+            
+            local _, spellIcon = L:GetSpellInfo(data.spellID)
+            row.iconSpell:SetTexture(spellIcon or "Interface\\Icons\\INV_Misc_QuestionMark")
+            
+            local targetName = data.targetID
+            if string.find(targetName, "GROUP_") then
+                targetName = "G" .. string.match(targetName, "GROUP_(%d+)")
+            else
+                targetName = L:GetClassName(targetName)
+            end
+            
+            local cColor = GetClassColorHex(data.casterClass)
+            local spellNameShort = string.gsub(data.spellName, " superior", "")
+            spellNameShort = string.gsub(spellNameShort, "Bendición de ", "B. ")
+            
+            local missList = table.concat(data.missingPlayers, ", ")
+            row.text:SetText(string.format("|c%s%s|r debe poner |cffffd100%s|r a %s\n|cff888888(Faltan: %s)|r", 
+                cColor, data.casterName, spellNameShort, targetName, missList))
+            
+            row:Show()
+            yOffset = yOffset + 34
+            rowIndex = rowIndex + 1
+        end
+    end
+    ReportScrollChild:SetHeight(yOffset + 10)
+end
+
+local function AnnounceToGroup(lines)
+    local channel = RaidBuffetDB and RaidBuffetDB.AnnounceChannel or "RAID"
+    if not IsInGroup() then
+        for _, line in ipairs(lines) do
+            print(line)
+        end
+        return
+    end
+    for _, line in ipairs(lines) do
+        SendChatMessage(line, channel)
+    end
+end
+
+function ReportPanel:AnnounceAssignments()
+    local units = {}
+    if IsInRaid() then
+        for i = 1, GetNumGroupMembers() do
+            local name, _, _, _, _, classFileName = GetRaidRosterInfo(i)
+            if name and classFileName then
+                name = string.match(name, "([^%-]+)")
+                units[name] = true
+            end
+        end
+    elseif IsInGroup() then
+        for i = 1, GetNumSubgroupMembers() do
+            local name = UnitName("party" .. i)
+            if name then
+                name = string.match(name, "([^%-]+)")
+                units[name] = true
+            end
+        end
+        units[UnitName("player")] = true
+    else
+        units[UnitName("player")] = true
+    end
+    
+    local lines = {}
+    table.insert(lines, "[RaidBuffet] --- Asignaciones de Buffs ---")
+    local hasAny = false
+    
+    for casterClass, casters in pairs(addonTable.Assignments) do
+        for casterName, targets in pairs(casters) do
+            if units[casterName] or (not IsInGroup() and casterName == UnitName("player")) then
+                local buffsGrouped = {}
+                for targetID, spellID in pairs(targets) do
+                    local spellName = L:GetSpellInfo(spellID)
+                    if spellName then
+                        local tName = targetID
+                        if string.find(tName, "GROUP_") then
+                            tName = "G" .. string.match(tName, "GROUP_(%d+)")
+                        else
+                            tName = L:GetClassName(tName)
+                        end
+                        if not buffsGrouped[spellName] then
+                            buffsGrouped[spellName] = {}
+                        end
+                        table.insert(buffsGrouped[spellName], tName)
+                    end
+                end
+                
+                local playerBuffs = {}
+                for spellName, targetsList in pairs(buffsGrouped) do
+                    table.insert(playerBuffs, spellName .. " a " .. table.concat(targetsList, "/"))
+                end
+                
+                if #playerBuffs > 0 then
+                    hasAny = true
+                    table.insert(lines, string.format("%s (%s) buffea: %s", casterName, L:GetClassName(casterClass), table.concat(playerBuffs, ", ")))
+                end
+            end
+        end
+    end
+    
+    if not hasAny then
+        table.insert(lines, "No hay buffs asignados.")
+    end
+    AnnounceToGroup(lines)
+end
+
+function ReportPanel:AnnounceMissing()
+    local missing = Scanner:GetMissingBuffsReport()
+    local lines = {}
+    table.insert(lines, "[RaidBuffet] --- Buffs Faltantes ---")
+    
+    if #missing == 0 then
+        table.insert(lines, "¡Todos los buffs están al día!")
+    else
+        for _, data in ipairs(missing) do
+            local targetName = data.targetID
+            if string.find(targetName, "GROUP_") then
+                targetName = "Grupo " .. string.match(targetName, "GROUP_(%d+)")
+            else
+                targetName = L:GetClassName(targetName)
+            end
+            local missingList = table.concat(data.missingPlayers, ", ")
+            table.insert(lines, string.format("%s (%s) debe poner %s a %s (Faltan: %s)", 
+                data.casterName, data.casterClass, data.spellName, targetName, missingList))
+        end
+    end
+    AnnounceToGroup(lines)
+end
+
+-- Botones inferiores compactos
+local rRefreshBtn = CreateFrame("Button", nil, ReportPanel, "BackdropTemplate")
+rRefreshBtn:SetSize(65, 22)
+rRefreshBtn:SetPoint("BOTTOMLEFT", 10, 10)
+rRefreshBtn:SetBackdrop({
+    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+    edgeFile = "Interface\\Buttons\\WHITE8X8",
+    tile = true, tileSize = 16, edgeSize = 1,
+})
+rRefreshBtn:SetBackdropColor(0.14, 0.14, 0.14, 1)
+rRefreshBtn:SetBackdropBorderColor(0.7, 0.5, 0.2, 0.5)
+rRefreshBtn.text = rRefreshBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+rRefreshBtn.text:SetPoint("CENTER", 0, 0)
+rRefreshBtn.text:SetText("Refrescar")
+rRefreshBtn:SetScript("OnEnter", function(self)
+    self:SetBackdropColor(0.22, 0.22, 0.22, 1)
+    self:SetBackdropBorderColor(0.85, 0.7, 0.3, 1)
+end)
+rRefreshBtn:SetScript("OnLeave", function(self)
+    self:SetBackdropColor(0.14, 0.14, 0.14, 1)
+    self:SetBackdropBorderColor(0.7, 0.5, 0.2, 0.5)
+end)
+rRefreshBtn:SetScript("OnClick", function()
+    ReportPanel:UpdateReport()
+end)
+
+local rAnnounceAssignBtn = CreateFrame("Button", nil, ReportPanel, "BackdropTemplate")
+rAnnounceAssignBtn:SetSize(100, 22)
+rAnnounceAssignBtn:SetPoint("LEFT", rRefreshBtn, "RIGHT", 5, 0)
+rAnnounceAssignBtn:SetBackdrop({
+    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+    edgeFile = "Interface\\Buttons\\WHITE8X8",
+    tile = true, tileSize = 16, edgeSize = 1,
+})
+rAnnounceAssignBtn:SetBackdropColor(0.14, 0.14, 0.14, 1)
+rAnnounceAssignBtn:SetBackdropBorderColor(0.7, 0.5, 0.2, 0.5)
+rAnnounceAssignBtn.text = rAnnounceAssignBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+rAnnounceAssignBtn.text:SetPoint("CENTER", 0, 0)
+rAnnounceAssignBtn.text:SetText("Anun. Tareas")
+rAnnounceAssignBtn:SetScript("OnEnter", function(self)
+    self:SetBackdropColor(0.22, 0.22, 0.22, 1)
+    self:SetBackdropBorderColor(0.85, 0.7, 0.3, 1)
+end)
+rAnnounceAssignBtn:SetScript("OnLeave", function(self)
+    self:SetBackdropColor(0.14, 0.14, 0.14, 1)
+    self:SetBackdropBorderColor(0.7, 0.5, 0.2, 0.5)
+end)
+rAnnounceAssignBtn:SetScript("OnClick", function()
+    ReportPanel:AnnounceAssignments()
+end)
+
+local rAnnounceMissingBtn = CreateFrame("Button", nil, ReportPanel, "BackdropTemplate")
+rAnnounceMissingBtn:SetSize(100, 22)
+rAnnounceMissingBtn:SetPoint("LEFT", rAnnounceAssignBtn, "RIGHT", 5, 0)
+rAnnounceMissingBtn:SetBackdrop({
+    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+    edgeFile = "Interface\\Buttons\\WHITE8X8",
+    tile = true, tileSize = 16, edgeSize = 1,
+})
+rAnnounceMissingBtn:SetBackdropColor(0.14, 0.14, 0.14, 1)
+rAnnounceMissingBtn:SetBackdropBorderColor(0.7, 0.5, 0.2, 0.5)
+rAnnounceMissingBtn.text = rAnnounceMissingBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+rAnnounceMissingBtn.text:SetPoint("CENTER", 0, 0)
+rAnnounceMissingBtn.text:SetText("Anun. Faltas")
+rAnnounceMissingBtn:SetScript("OnEnter", function(self)
+    self:SetBackdropColor(0.22, 0.22, 0.22, 1)
+    self:SetBackdropBorderColor(0.85, 0.7, 0.3, 1)
+end)
+rAnnounceMissingBtn:SetScript("OnLeave", function(self)
+    self:SetBackdropColor(0.14, 0.14, 0.14, 1)
+    self:SetBackdropBorderColor(0.7, 0.5, 0.2, 0.5)
+end)
+rAnnounceMissingBtn:SetScript("OnClick", function()
+    ReportPanel:AnnounceMissing()
+end)
+
+ReportPanel:RegisterEvent("UNIT_AURA")
+ReportPanel:RegisterEvent("GROUP_ROSTER_UPDATE")
+ReportPanel:SetScript("OnEvent", function(self)
+    if self:IsShown() then
+        self:UpdateReport()
+    end
+end)
+
+ReportPanel:SetScript("OnShow", function(self)
+    self:UpdateReport()
+end)
 
 -- ============================================================================
 -- COMANDOS DE CHAT (SLASH COMMANDS)
