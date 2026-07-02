@@ -1291,9 +1291,18 @@ function SubFrame:RefreshList()
             row.name:SetWidth(90)
             row.name:SetJustifyH("LEFT")
             
+            SubFrame.rows[rowIndex] = row
+        end
+        row:SetPoint("TOPLEFT", SubScrollChild, "TOPLEFT", 0, -yOffset)
+        
+        if not row.buttons then
             row.buttons = {}
-            for pIdx = 1, 8 do
-                local btn = CreateFrame("Button", nil, row, "BackdropTemplate")
+        end
+        
+        for pIdx = 1, 8 do
+            local btn = row.buttons[pIdx]
+            if not btn then
+                btn = CreateFrame("Button", nil, row, "BackdropTemplate")
                 btn:SetSize(20, 20)
                 btn:SetPoint("LEFT", row.name, "RIGHT", (pIdx-1)*40 + 8, 0)
                 
@@ -1311,9 +1320,7 @@ function SubFrame:RefreshList()
                 
                 row.buttons[pIdx] = btn
             end
-            SubFrame.rows[rowIndex] = row
         end
-        row:SetPoint("TOPLEFT", SubScrollChild, "TOPLEFT", 0, -yOffset)
         
         row.name:SetText(palName)
         row.name:SetTextColor(0.96, 0.55, 0.73) -- Rosa paladín

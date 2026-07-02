@@ -2,6 +2,12 @@
 
 Este archivo registra las decisiones arquitectónicas y el estado del proyecto generado por la IA en el addon RaidBuffet.
 
+## [02/07/2026] v1.5.2 - Bugfix Crítico: Robustez en Inicialización de SubFrame tras Reload
+
+- **Reutilización de Frames Defensiva**:
+  - Corregido el error de Lua `attempt to index field 'buttons' (a nil value)` que ocurría si los frames de fila (`SubFrame.rows`) persistían en la memoria de WoW de versiones anteriores tras hacer `/reload`.
+  - Separada la instanciación de la tabla `row.buttons` y de sus celdas hijas respecto a la creación del marco contenedor (`row`), asegurando que siempre se inicialicen de forma segura e incremental independientemente del origen de los frames.
+
 ## [02/07/2026] v1.5.1 - UX Descubrible: Guía de Ayuda Integrada y Tooltips de Eje
 
 - **Botón de Ayuda General (`Grid.helpBtn`)**:

@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.2] - 2026-07-02
+
+### Fixed
+- **Robustez de Frames (`attempt to index field 'buttons'`)**: Corregida la inicialización de los botones individuales en el sub-panel para garantizar que se creen y mapeen de forma segura, incluso si las filas principales persistían en memoria de versiones anteriores tras un `/reload`.
+
 ## [1.5.1] - 2026-07-02
 
 ### Added
