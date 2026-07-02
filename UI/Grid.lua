@@ -238,6 +238,51 @@ local function OnCellClick(self, button)
     end
 end
 
+local function OnCellMouseWheel(self, delta)
+    if not HasEditPermissions() then return end
+
+    local spellList = Constants.BuffDB[self.casterClass]
+    if not spellList then return end
+
+    if not addonTable.Assignments[self.casterClass] then addonTable.Assignments[self.casterClass] = {} end
+    if not addonTable.Assignments[self.casterClass][self.casterName] then addonTable.Assignments[self.casterClass][self.casterName] = {} end
+
+    local currentSpell = addonTable.Assignments[self.casterClass][self.casterName][self.targetID]
+    
+    local options = { "CLEAR" }
+    for _, sID in ipairs(spellList) do
+        table.insert(options, sID)
+    end
+    
+    local curIdx = 1
+    local lookupVal = currentSpell or "CLEAR"
+    for i, opt in ipairs(options) do
+        if opt == lookupVal then
+            curIdx = i
+            break
+        end
+    end
+    
+    if delta > 0 then
+        curIdx = curIdx + 1
+        if curIdx > #options then curIdx = 1 end
+    else
+        curIdx = curIdx - 1
+        if curIdx < 1 then curIdx = #options end
+    end
+    
+    local nextVal = options[curIdx]
+    if nextVal == "CLEAR" then
+        addonTable.Assignments[self.casterClass][self.casterName][self.targetID] = nil
+        Sync:SendAssignment(self.casterClass, self.casterName, self.targetID, "CLEAR")
+    else
+        addonTable.Assignments[self.casterClass][self.casterName][self.targetID] = nextVal
+        Sync:SendAssignment(self.casterClass, self.casterName, self.targetID, nextVal)
+    end
+    
+    Grid:UpdateGrid()
+end
+
 -- Función segura para obtener el color de clase (Compatibilidad TBC/Anniversary/Modern)
 function GetClassColorObj(classFileName)
     if C_ClassColor and C_ClassColor.GetClassColor then
@@ -516,6 +561,8 @@ function Grid:UpdateGrid()
                             cell:SetScript("OnClick", OnCellClick)
                             cell:SetScript("OnEnter", OnCellEnter)
                             cell:SetScript("OnLeave", OnCellLeave)
+                            cell:EnableMouseWheel(true)
+                            cell:SetScript("OnMouseWheel", OnCellMouseWheel)
                             
                             row.cells[i] = cell
                         end
@@ -971,6 +1018,70 @@ function SubFrame:RefreshList()
                     end
                     OpenAssignMenu(btn, palName, pData.name, targetClass)
                 end)
+                
+                btn:EnableMouseWheel(true)
+                btn:SetScript("OnMouseWheel", function(self, delta)
+                    if not HasEditPermissions() then return end
+                    
+                    local spells = {
+                        { id = 20217, sup = 25898 }, -- Reyes
+                        { id = 19977, sup = 25890 }, -- Luz
+                        { id = 19740, sup = 27141 }, -- Poderío
+                        { id = 1038,  sup = 25895 }, -- Salvación
+                        { id = 19742, sup = 27143 }, -- Sabiduría
+                        { id = 20911, sup = 25899 }  -- Santuario
+                    }
+                    
+                    local isCasterPlayer = (palName == UnitName("player"))
+                    local options = { "CLEAR" }
+                    for _, sData in ipairs(spells) do
+                        local isKnown = true
+                        if isCasterPlayer then
+                            isKnown = IsSpellInSpellbook(sData.id)
+                        end
+                        if isKnown then
+                            table.insert(options, sData.id)
+                        end
+                    end
+                    
+                    local currentSpell = nil
+                    if addonTable.Assignments["PALADIN"] and addonTable.Assignments["PALADIN"][palName] then
+                        currentSpell = addonTable.Assignments["PALADIN"][palName][pData.name]
+                    end
+                    
+                    local curIdx = 1
+                    local lookupVal = currentSpell or "CLEAR"
+                    for i, opt in ipairs(options) do
+                        if opt == lookupVal then
+                            curIdx = i
+                            break
+                        end
+                    end
+                    
+                    if delta > 0 then
+                        curIdx = curIdx + 1
+                        if curIdx > #options then curIdx = 1 end
+                    else
+                        curIdx = curIdx - 1
+                        if curIdx < 1 then curIdx = #options end
+                    end
+                    
+                    local nextVal = options[curIdx]
+                    if not addonTable.Assignments["PALADIN"] then addonTable.Assignments["PALADIN"] = {} end
+                    if not addonTable.Assignments["PALADIN"][palName] then addonTable.Assignments["PALADIN"][palName] = {} end
+                    
+                    if nextVal == "CLEAR" then
+                        addonTable.Assignments["PALADIN"][palName][pData.name] = nil
+                        Sync:SendAssignment("PALADIN", palName, pData.name, "CLEAR")
+                    else
+                        addonTable.Assignments["PALADIN"][palName][pData.name] = nextVal
+                        Sync:SendAssignment("PALADIN", palName, pData.name, nextVal)
+                    end
+                    
+                    Grid:UpdateGrid()
+                    SubFrame:RefreshList()
+                end)
+                
                 btn:Show()
             else
                 btn:Hide()

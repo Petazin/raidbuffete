@@ -2,6 +2,13 @@
 
 Este archivo registra las decisiones arquitectónicas y el estado del proyecto generado por la IA en el addon RaidBuffet.
 
+## [01/07/2026] v1.4.0 - Asignación Dinámica con Scroll de Rueda de Ratón (MouseWheel)
+
+- **Ciclado por Rueda de Ratón (MouseWheel)**:
+  - **Grilla Principal**: Vinculados los eventos `EnableMouseWheel` y `OnMouseWheel` sobre todas las celdas de asignación. Al rodar scroll arriba/abajo, cicla en tiempo real por los buffs superiores de la clase caster. Se incluye el estado `"CLEAR"` para permitir desasignar limpiamente el buff.
+  - **Panel de Sub-Asignaciones**: Vinculado scroll de ratón en las celdas individuales por jugador. Rueda arriba/abajo cicla por las bendiciones pequeñas de ese paladín. Al ser el paladín local, se valida con `IsSpellInSpellbook` para listar solo las que realmente conoce, y se añade la opción `"CLEAR"` (Heredar clase) al ciclo para limpieza rápida.
+  - **Redibujado e Hilos Síncronos**: Los cambios se guardan localmente en la base de datos de asignaciones, se propagan de inmediato vía P2P por red con `Sync:SendAssignment` y se redibujan síncronamente en ambos paneles (`Grid:UpdateGrid` y `SubFrame:RefreshList`), logrando una experiencia de usuario ultra-ágil sin esperas.
+
 ## [01/07/2026] v1.3.4 - Inversión de Dimensiones y Consistencia Total de Ejes en Ventana de Sub-Asignación
 
 - **Inversión de Ejes en Sub-Asignaciones**: Modificada la lógica de la función `SubFrame:RefreshList()` en `UI/Grid.lua` para lograr simetría absoluta con la disposición espacial del grid principal:

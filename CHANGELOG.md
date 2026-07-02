@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.4.0] - 2026-07-01
+
+### Added
+- **Asignación Ultra-Rápida con Rueda de Ratón (Scroll / Mouse Wheel)**:
+  - Implementado el soporte para cambiar asignaciones deslizando la rueda del ratón sobre cualquier celda de buff.
+  - **Grilla Principal**: Rodar el scroll arriba/abajo cicla de forma instantánea entre los buffs superiores de la clase caster, incluyendo la opción de limpiar la asignación (vacío).
+  - **Sub-Asignación Individual**: Rodar el scroll sobre el buff de un jugador cicla dinámicamente las bendiciones pequeñas del paladín. Para el paladín local, se filtran en tiempo real solo las bendiciones conocidas en su libro de hechizos, e incluye la opción "Heredar clase" (vacío) para una limpieza instantánea.
+
 ## [1.3.4] - 2026-07-01
 
 ### Changed
