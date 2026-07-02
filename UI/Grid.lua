@@ -598,7 +598,7 @@ end
 -- VENTANA DE SUB-ASIGNACIONES INDIVIDUALES (MOCKUP v1.3.0)
 -- ============================================================================
 local SubFrame = CreateFrame("Frame", "RaidBuffetSubAssignFrame", UIParent, "BasicFrameTemplateWithInset")
-SubFrame:SetSize(340, 240)
+SubFrame:SetSize(440, 240)
 SubFrame:SetPoint("CENTER", UIParent, "CENTER", 100, 0)
 SubFrame:SetMovable(true)
 SubFrame:EnableMouse(true)
@@ -615,7 +615,7 @@ SubScrollFrame:SetPoint("TOPLEFT", 10, -35)
 SubScrollFrame:SetPoint("BOTTOMRIGHT", -30, 10)
 
 local SubScrollChild = CreateFrame("Frame", "RaidBuffetSubAssignScrollChild", SubScrollFrame)
-SubScrollChild:SetSize(280, 1)
+SubScrollChild:SetSize(380, 1)
 SubScrollFrame:SetScrollChild(SubScrollChild)
 
 SubFrame.rows = {}
@@ -782,7 +782,7 @@ function SubFrame:RefreshList()
     local targetClass = SubFrame.targetClass
     if not targetClass then return end
     
-    -- 1. Recopilar jugadores reales de la clase
+    -- 1. Recopilar jugadores reales de la clase (objetivos)
     local players = {}
     if IsInRaid() then
         for i = 1, GetNumGroupMembers() do
@@ -817,7 +817,7 @@ function SubFrame:RefreshList()
         end
     end
     
-    -- 2. Recopilar paladines activos
+    -- 2. Recopilar paladines activos (casters)
     local paladins = {}
     if IsInRaid() then
         for i = 1, GetNumGroupMembers() do
@@ -856,7 +856,7 @@ function SubFrame:RefreshList()
         local row = SubFrame.rows[1]
         if not row then
             row = CreateFrame("Frame", nil, SubScrollChild)
-            row:SetSize(300, 24)
+            row:SetSize(380, 24)
             row.name = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
             row.name:SetPoint("CENTER", row, "CENTER", 0, 0)
             SubFrame.rows[1] = row
@@ -869,46 +869,55 @@ function SubFrame:RefreshList()
         return
     end
     
-    -- 3. Dibujar cabeceras de columnas (Paladines)
-    for i, palName in ipairs(paladins) do
-        local h = SubFrame.headers[i]
-        if not h then
-            h = CreateFrame("Button", nil, SubScrollChild)
-            h:SetSize(36, 16)
-            h.text = h:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-            h.text:SetPoint("CENTER", 0, 0)
-            SubFrame.headers[i] = h
+    -- 3. Dibujar cabeceras de columnas (Jugadores destino)
+    for i, pData in ipairs(players) do
+        if i <= 8 then
+            local h = SubFrame.headers[i]
+            if not h then
+                h = CreateFrame("Button", nil, SubScrollChild)
+                h:SetSize(36, 16)
+                h.text = h:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+                h.text:SetPoint("CENTER", 0, 0)
+                SubFrame.headers[i] = h
+            end
+            h:SetPoint("TOPLEFT", SubScrollChild, "TOPLEFT", 100 + (i-1)*40, -5)
+            h.text:SetText(string.sub(pData.name, 1, 4))
+            
+            local color = GetClassColorObj(pData.class)
+            h.text:SetTextColor(color.r, color.g, color.b)
+            
+            -- Tooltip con nombre completo
+            local isMT = Scanner:IsMainTank(pData.unit)
+            h:SetScript("OnEnter", function(self)
+                GameTooltip:SetOwner(self, "ANCHOR_TOP")
+                GameTooltip:ClearLines()
+                local titleName = pData.name
+                if isMT then
+                    titleName = "|cff00ffff[T]|r " .. titleName
+                end
+                GameTooltip:AddDoubleLine(titleName, isMT and "|cff00ffffTanque Principal|r" or "", color.r, color.g, color.b, 0, 1, 1)
+                GameTooltip:Show()
+            end)
+            h:SetScript("OnLeave", function() GameTooltip:Hide() end)
+            h:Show()
         end
-        h:SetPoint("TOPLEFT", SubScrollChild, "TOPLEFT", 120 + (i-1)*40, -5)
-        h.text:SetText(string.sub(palName, 1, 4))
-        h.text:SetTextColor(0.96, 0.55, 0.73) -- Color de clase Paladín
-        
-        -- Tooltip con nombre completo
-        h:SetScript("OnEnter", function(self)
-            GameTooltip:SetOwner(self, "ANCHOR_TOP")
-            GameTooltip:ClearLines()
-            GameTooltip:AddLine(palName, 0.96, 0.55, 0.73)
-            GameTooltip:Show()
-        end)
-        h:SetScript("OnLeave", function() GameTooltip:Hide() end)
-        h:Show()
     end
     
-    -- 4. Dibujar filas de jugadores
+    -- 4. Dibujar filas de paladines (Casters)
     local yOffset = 25
-    for rowIndex, uData in ipairs(players) do
+    for rowIndex, palName in ipairs(paladins) do
         local row = SubFrame.rows[rowIndex]
         if not row then
             row = CreateFrame("Frame", nil, SubScrollChild)
-            row:SetSize(300, 24)
+            row:SetSize(380, 24)
             
             row.name = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
             row.name:SetPoint("LEFT", 5, 0)
-            row.name:SetWidth(110)
+            row.name:SetWidth(90)
             row.name:SetJustifyH("LEFT")
             
             row.buttons = {}
-            for pIdx = 1, 5 do
+            for pIdx = 1, 8 do
                 local btn = CreateFrame("Button", nil, row)
                 btn:SetSize(20, 20)
                 btn:SetPoint("LEFT", row.name, "RIGHT", (pIdx-1)*40 + 8, 0)
@@ -922,24 +931,19 @@ function SubFrame:RefreshList()
         end
         row:SetPoint("TOPLEFT", SubScrollChild, "TOPLEFT", 0, -yOffset)
         
-        -- Nombre con marca de Tanque Principal
-        local isMT = Scanner:IsMainTank(uData.unit)
-        local dispName = uData.name
-        if isMT then
-            dispName = "|cff00ffff[T]|r " .. dispName
-        end
-        row.name:SetText(dispName)
+        row.name:SetText(palName)
+        row.name:SetTextColor(0.96, 0.55, 0.73) -- Rosa paladín
         
-        -- Configurar botones para cada paladín
-        for pIdx = 1, 5 do
+        -- Configurar botones para cada jugador destino
+        for pIdx = 1, 8 do
             local btn = row.buttons[pIdx]
-            if pIdx <= #paladins then
-                local palName = paladins[pIdx]
+            if pIdx <= #players then
+                local pData = players[pIdx]
                 
                 local assignedSpell = nil
                 local isIndividual = false
                 if addonTable.Assignments["PALADIN"] and addonTable.Assignments["PALADIN"][palName] then
-                    assignedSpell = addonTable.Assignments["PALADIN"][palName][uData.name]
+                    assignedSpell = addonTable.Assignments["PALADIN"][palName][pData.name]
                     if assignedSpell then
                         isIndividual = true
                     else
@@ -965,7 +969,7 @@ function SubFrame:RefreshList()
                         print("|cffff0000[RaidBuffet]|r No tienes permisos de edición.")
                         return
                     end
-                    OpenAssignMenu(btn, palName, uData.name, targetClass)
+                    OpenAssignMenu(btn, palName, pData.name, targetClass)
                 end)
                 btn:Show()
             else

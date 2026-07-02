@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.4] - 2026-07-01
+
+### Changed
+- **Consistencia Visual en Sub-Asignaciones (Ejes Invertidos)**: Se invirtieron las dimensiones del panel flotante `RaidBuffetSubAssignFrame` para lograr consistencia visual total con la ventana principal. Ahora, **a la izquierda (filas)** se listan siempre los Paladines que deben bufar (casters) pintados en rosa, y **arriba (columnas)** se listan los jugadores individuales de la clase destino que recibirán el buff (objetivos) coloreados en base a su clase de personaje. Al pasar el ratón por encima de los nombres abreviados de las columnas superiores, un tooltip inteligente desplegará su nombre completo y su rol (ej: Tanque Principal).
+
 ## [1.3.3] - 2026-06-30
 
 ### Changed

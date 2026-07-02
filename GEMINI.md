@@ -2,6 +2,14 @@
 
 Este archivo registra las decisiones arquitectónicas y el estado del proyecto generado por la IA en el addon RaidBuffet.
 
+## [01/07/2026] v1.3.4 - Inversión de Dimensiones y Consistencia Total de Ejes en Ventana de Sub-Asignación
+
+- **Inversión de Ejes en Sub-Asignaciones**: Modificada la lógica de la función `SubFrame:RefreshList()` en `UI/Grid.lua` para lograr simetría absoluta con la disposición espacial del grid principal:
+  - **Eje Y (Filas - Izquierda)**: Pasa a representar a los Paladines de la raid que deben bufar (casters), con sus nombres pintados en rosa de clase.
+  - **Eje X (Columnas - Arriba)**: Pasa a representar a los jugadores destino individuales de la clase/grupo destino que recibirán el buff (objetivos), mostrados con nombres abreviados a 4 letras.
+  - **Ayudas contextuales**: Los encabezados superiores de los objetivos se colorean en base al color de su clase de personaje y un tooltip en hover muestra su nombre de unidad completo y rol de raid (ej. Tanque Principal).
+  - **Dimensiones**: Se ensanchó el frame de sub-asignación `SubFrame` a 440px para acomodar cómodamente hasta 8 columnas de objetivos de forma holgada sin comprometer el área visual.
+
 ## [30/06/2026] v1.3.3 - Rediseño del Pie de Página y Pulido del Menú Contextual de Sub-Asignaciones
 
 - **Rediseño del Pie de Página**: Ensanchada la ventana principal `Grid` de 460px a 520px de ancho para proporcionar mayor holgura horizontal. Se reubicaron las coordenadas X absolutas en `UpdateGrid()` (`showAllCheck` en 10, `reportBtn` en 175 y `delegateContainer` en 260), alejándolos de la esquina derecha para eliminar por completo la superposición y colisión visual del botón de Auto-Cast y su texto de estado con el cuadro de Co-Asignador.
