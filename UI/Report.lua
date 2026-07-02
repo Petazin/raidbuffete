@@ -4,6 +4,7 @@ local Scanner = addonTable.Scanner
 local Constants = addonTable.Constants
 
 local ReportFrame = CreateFrame("Frame", "RaidBuffetReportFrame", UIParent, "BackdropTemplate")
+ReportFrame:SetToplevel(true)
 addonTable.UI.ReportFrame = ReportFrame
 
 ReportFrame:SetSize(480, 360)

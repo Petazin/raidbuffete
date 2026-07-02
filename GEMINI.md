@@ -2,6 +2,12 @@
 
 Este archivo registra las decisiones arquitectónicas y el estado del proyecto generado por la IA en el addon RaidBuffet.
 
+## [02/07/2026] v1.5.3 - Interacción de Ventanas: Control de Superposición (Toplevel)
+
+- **Traer Ventana al Frente (`SetToplevel`)**:
+  - Habilitada la propiedad `SetToplevel(true)` en las tres ventanas flotantes del addon: Grilla de Asignaciones (`Grid`), Sub-Asignaciones Individuales (`SubFrame`) y el Reporte de Faltantes (`ReportFrame`).
+  - Esto soluciona de forma nativa la superposición de marcos, de tal manera que al hacer clic sobre cualquier área o cabecera de una ventana, esta se posiciona de forma automática al frente del resto en la pantalla de juego de manera orgánica.
+
 ## [02/07/2026] v1.5.2 - Bugfix Crítico: Robustez en Inicialización de SubFrame tras Reload
 
 - **Reutilización de Frames Defensiva**:

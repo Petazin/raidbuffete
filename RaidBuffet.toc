@@ -2,7 +2,7 @@
 ## Title: RaidBuffet
 ## Notes: Sistema Universal de Asignación de Buffs de Raid. Gestiona y lanza tus buffs fácilmente.
 ## Author: Petazo / Antigravity
-## Version: 1.5.2
+## Version: 1.5.3
 ## SavedVariables: RaidBuffetDB
 ## X-Curse-Project-ID: 1592921
 

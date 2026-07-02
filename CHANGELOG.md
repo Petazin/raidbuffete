@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.3] - 2026-07-02
+
+### Changed
+- **Interacción de Ventanas (Toplevel)**: Habilitada la propiedad nativa de Blizzard `SetToplevel(true)` en las ventanas de Asignaciones (`Grid`), Sub-Asignación Individual (`SubFrame`) y Reporte de Faltantes (`ReportFrame`). Esto permite que al hacer clic en cualquiera de ellas, se traiga dinámicamente al frente de la pantalla, evitando colisiones visuales y superposiciones molestas.
+
 ## [1.5.2] - 2026-07-02
 
 ### Fixed

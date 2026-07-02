@@ -5,6 +5,7 @@ local Constants = addonTable.Constants
 local Scanner = addonTable.Scanner
 
 local Grid = CreateFrame("Frame", "RaidBuffetGridFrame", UIParent, "BackdropTemplate")
+Grid:SetToplevel(true)
 addonTable.UI = Grid
 
 Grid:SetSize(520, 300)
@@ -883,6 +884,7 @@ end
 -- VENTANA DE SUB-ASIGNACIONES INDIVIDUALES (MOCKUP v1.3.0)
 -- ============================================================================
 local SubFrame = CreateFrame("Frame", "RaidBuffetSubAssignFrame", UIParent, "BackdropTemplate")
+SubFrame:SetToplevel(true)
 SubFrame:SetSize(440, 240)
 SubFrame:SetPoint("CENTER", UIParent, "CENTER", 100, 0)
 SubFrame:SetMovable(true)
