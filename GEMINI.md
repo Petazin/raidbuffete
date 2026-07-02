@@ -2,6 +2,26 @@
 
 Este archivo registra las decisiones arquitectónicas y el estado del proyecto generado por la IA en el addon RaidBuffet.
 
+## [02/07/2026] v1.5.0 - Lavado de Cara Visual Completo: Diseño Minimalista Flat (Estilo ElvUI) y Pulido de UX
+
+- **Eliminación de Elementos Clásicos**:
+  - Removido el frame rústico por defecto `"BasicFrameTemplateWithInset"` en la ventana de asignaciones principal (`Grid`), el listado individual (`SubFrame`) y el reporte de faltantes (`RaidBuffetReportFrame`).
+  - Implementada la estética minimalista plana usando `BackdropTemplate` con fondos de color gris mate profundo translúcidos (`RGBA: 0.06, 0.06, 0.06, 0.94`) y bordes sólidos de **1 píxel** (`RGBA: 0.18, 0.18, 0.18, 1`), reduciendo al mínimo la ocupación visual en pantalla.
+  - Diseñada una barra de cabecera customizada arrastrable (`header`) en todas las ventanas con el título del addon en color dorado suave y un botón de cerrar ("X") minimalista que cambia de color al hover.
+  - Ocultas visualmente las barras de scroll nativas grises de Blizzard (`ScrollBar` y botones de flecha) en los scroll containers del reporte y de la sub-asignación individual, manteniendo la rueda del ratón operativa para un acabado plano impecable.
+- **Efectos de Brillo en Hover (Glow)**:
+  - Vinculada la interacción `OnEnter` y `OnLeave` en todas las celdas principales y botones individuales de sub-asignación.
+  - Al pasar el ratón, el borde de la celda experimenta un efecto de brillo (Glow) en color dorado suave (`RGBA: 0.85, 0.7, 0.3, 1`) para indicar foco de forma fluida. Al retirar el cursor, el borde regresa suavemente a su estado base (gris claro si está asignado, o gris oscuro si está vacío).
+- **Botones de Control Estilizados**:
+  - Reemplazada la textura roja clásica de Blizzard en los botones inferiores (del panel principal y del reporte de faltantes) por botones planos customizados de fondo gris mate y bordes de 1 píxel de color dorado que responden de forma visual e iluminan sus bordes al hover.
+- **Optimizaciones de Ciclado y Control de UX (Atajos de Shift)**:
+  - **Evitación de Atascamiento**: Introducida la función auxiliar `GetNextViableSpell` para filtrar de forma dinámica e inteligente los buffs viables por columna de clase, previniendo atascos en la rotación (como Guerreros/Pícaros con Sabiduría, o Magos con Santuario). El ciclado ahora incluye siempre el estado vacío (`CLEAR`).
+  - **Propagación y Borrado Masivo**: Shift + Clic Izquierdo permite propagar masivamente buffs (y vaciar) a clases viables. Shift + Clic Derecho sobre celdas del panel principal realiza un borrado masivo de toda la fila de asignación de ese caster al instante.
+  - **Sub-Asignación Individual mejorada**: Añadida la opción `"Ninguno (No bufar)"` al menú contextual del clic izquierdo, y programado el clic derecho en las celdas de jugadores individuales para limpiar de inmediato a "Heredar clase".
+  - **Claridad de Ejes**: Incorporadas etiquetas fijas `"Caster (Bufa)"` y `"Objetivos (Reciben)"` en el panel de sub-asignación individual para guiar la UX.
+- **Refresco Automático de Reportes**:
+  - Registrados los eventos nativos `UNIT_AURA` y `GROUP_ROSTER_UPDATE` en el reporte de faltantes, logrando que el listado se actualice síncronamente y en tiempo real sin necesidad de refrescar de forma manual.
+
 ## [01/07/2026] v1.4.0 - Asignación Dinámica con Scroll de Rueda de Ratón (MouseWheel)
 
 - **Ciclado por Rueda de Ratón (MouseWheel)**:

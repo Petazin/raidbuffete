@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.0] - 2026-07-02
+
+### Changed
+- **Rediseño Visual Premium (Estilo Minimalista Flat)**:
+  - Removidos por completo los marcos metálicos rústicos y dorados de Blizzard (`BasicFrameTemplateWithInset`) en la ventana principal (`Grid`), el panel de sub-asignación (`SubFrame`) y la ventana de reporte (`RaidBuffetReportFrame`).
+  - Implementado un diseño plano y moderno mediante `BackdropTemplate` con bordes sólidos de **1 píxel** y fondos gris mate semi-transparentes (`RGBA: 15, 15, 15, 0.94`).
+  - Añadida una barra de cabecera superior y botón de cerrar ("X") minimalistas y limpios de color gris oscuro y dorado suave.
+  - Ocultas visualmente las barras de scroll nativas de Blizzard en los contenedores de scroll para un acabado 100% plano, conservando el scroll táctil de rueda de ratón.
+  - Rediseñados los botones de control inferiores (en la ventana principal y del reporte) para remover la textura roja clásica, reemplazándola por botones planos oscuros con bordes dorados suaves que se iluminan al pasar el ratón.
+- **Efectos de Brillo en Hover (Glow)**:
+  - Las celdas de buffs de la grilla principal e individual ahora tienen un contorno plateado fino y reaccionan dinámicamente: al pasar el ratón (`OnEnter`), su borde experimenta un efecto de brillo (Glow) dorado suave para dar feedback visual premium al instante.
+
+### Added
+- **Refinamiento de UX e Inteligencia de Ciclado**:
+  - **Filtro de Viabilidad de Clase (`GetNextViableSpell`)**: Ciclado de clic izquierdo inteligente por columna de clase que descarta automáticamente buffs incompatibles para evitar atascamientos (ej: Guerreros/Pícaros con Sabiduría, Magos con Santuario).
+  - **Atajo de Clic Derecho (Borrado Masivo)**: Shift + Clic Derecho sobre cualquier celda de la fila de un paladín limpia al instante todas sus asignaciones asignadas en el grid.
+  - **Sub-Asignación Individual y Ejes**: Añadida la opción `"Ninguno (No bufar)"` al menú contextual, soporte de Clic Derecho para limpiar asignaciones individuales a "Heredar", y agregadas etiquetas visuales estáticas `"Caster (Bufa)"` y `"Objetivos (Reciben)"`.
+  - **Autorefresco del Reporte**: Registrados eventos `UNIT_AURA` y `GROUP_ROSTER_UPDATE` para actualizar el reporte de faltantes en tiempo real sin requerir interacción manual.
+
 ## [1.4.0] - 2026-07-01
 
 ### Added

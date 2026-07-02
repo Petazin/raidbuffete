@@ -4,7 +4,7 @@ local Sync = addonTable.Sync
 local Constants = addonTable.Constants
 local Scanner = addonTable.Scanner
 
-local Grid = CreateFrame("Frame", "RaidBuffetGridFrame", UIParent, "BasicFrameTemplateWithInset")
+local Grid = CreateFrame("Frame", "RaidBuffetGridFrame", UIParent, "BackdropTemplate")
 addonTable.UI = Grid
 
 Grid:SetSize(520, 300)
@@ -16,9 +16,58 @@ Grid:SetScript("OnDragStart", Grid.StartMoving)
 Grid:SetScript("OnDragStop", Grid.StopMovingOrSizing)
 Grid:Hide()
 
-Grid.title = Grid:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-Grid.title:SetPoint("CENTER", Grid.TitleBg, "CENTER", 0, 0)
+Grid:SetBackdrop({
+    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+    edgeFile = "Interface\\Buttons\\WHITE8X8",
+    tile = true, tileSize = 16, edgeSize = 1,
+    insets = { left = 0, right = 0, top = 0, bottom = 0 }
+})
+Grid:SetBackdropColor(0.06, 0.06, 0.06, 0.94)
+Grid:SetBackdropBorderColor(0.18, 0.18, 0.18, 1)
+
+Grid.header = CreateFrame("Frame", nil, Grid, "BackdropTemplate")
+Grid.header:SetSize(520, 24)
+Grid.header:SetPoint("TOPLEFT", Grid, "TOPLEFT", 0, 0)
+Grid.header:SetBackdrop({
+    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+    edgeFile = "Interface\\Buttons\\WHITE8X8",
+    tile = true, tileSize = 16, edgeSize = 1,
+    insets = { left = 0, right = 0, top = 0, bottom = 0 }
+})
+Grid.header:SetBackdropColor(0.12, 0.12, 0.12, 1)
+Grid.header:SetBackdropBorderColor(0.18, 0.18, 0.18, 1)
+
+Grid.header:EnableMouse(true)
+Grid.header:RegisterForDrag("LeftButton")
+Grid.header:SetScript("OnDragStart", function() Grid:StartMoving() end)
+Grid.header:SetScript("OnDragStop", function() Grid:StopMovingOrSizing() end)
+
+Grid.title = Grid.header:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+Grid.title:SetPoint("LEFT", 10, 0)
 Grid.title:SetText("RaidBuffet - Asignaciones")
+Grid.title:SetTextColor(0.8, 0.6, 0.2)
+
+Grid.closeBtn = CreateFrame("Button", nil, Grid.header, "BackdropTemplate")
+Grid.closeBtn:SetSize(16, 16)
+Grid.closeBtn:SetPoint("RIGHT", -6, 0)
+Grid.closeBtn:SetBackdrop({
+    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+    edgeFile = "Interface\\Buttons\\WHITE8X8",
+    tile = true, tileSize = 16, edgeSize = 1,
+})
+Grid.closeBtn:SetBackdropColor(0.2, 0.1, 0.1, 1)
+Grid.closeBtn:SetBackdropBorderColor(0.3, 0.15, 0.15, 1)
+Grid.closeBtn.text = Grid.closeBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+Grid.closeBtn.text:SetPoint("CENTER", 0, 0)
+Grid.closeBtn.text:SetText("X")
+Grid.closeBtn.text:SetTextColor(0.8, 0.3, 0.3)
+Grid.closeBtn:SetScript("OnClick", function() Grid:Hide() end)
+Grid.closeBtn:SetScript("OnEnter", function(self)
+    self:SetBackdropColor(0.4, 0.15, 0.15, 1)
+end)
+Grid.closeBtn:SetScript("OnLeave", function(self)
+    self:SetBackdropColor(0.2, 0.1, 0.1, 1)
+end)
 
 local showAllCheck = CreateFrame("CheckButton", "RaidBuffetShowAllCheck", Grid, "UICheckButtonTemplate")
 showAllCheck:SetPoint("BOTTOMLEFT", 10, 5)
@@ -29,10 +78,29 @@ showAllCheck:SetScript("OnClick", function(self)
 end)
 
 -- Botón para abrir la ventana flotante de reportes de faltantes
-local reportBtn = CreateFrame("Button", "RaidBuffetReportBtn", Grid, "UIPanelButtonTemplate")
+local reportBtn = CreateFrame("Button", "RaidBuffetReportBtn", Grid, "BackdropTemplate")
 reportBtn:SetSize(80, 22)
 reportBtn:SetPoint("BOTTOMLEFT", showAllCheck, "BOTTOMRIGHT", 140, 5)
-reportBtn:SetText("Reporte")
+reportBtn:SetBackdrop({
+    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+    edgeFile = "Interface\\Buttons\\WHITE8X8",
+    tile = true, tileSize = 16, edgeSize = 1,
+})
+reportBtn:SetBackdropColor(0.14, 0.14, 0.14, 1)
+reportBtn:SetBackdropBorderColor(0.7, 0.5, 0.2, 0.5)
+
+reportBtn.text = reportBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+reportBtn.text:SetPoint("CENTER", 0, 0)
+reportBtn.text:SetText("Reporte")
+
+reportBtn:SetScript("OnEnter", function(self)
+    self:SetBackdropColor(0.22, 0.22, 0.22, 1)
+    self:SetBackdropBorderColor(0.85, 0.7, 0.3, 1)
+end)
+reportBtn:SetScript("OnLeave", function(self)
+    self:SetBackdropColor(0.14, 0.14, 0.14, 1)
+    self:SetBackdropBorderColor(0.7, 0.5, 0.2, 0.5)
+end)
 reportBtn:SetScript("OnClick", function()
     if RaidBuffetReportFrame then
         if RaidBuffetReportFrame:IsShown() then
@@ -100,6 +168,7 @@ end
 -- EVENTOS DE TOOLTIP EN CELDAS (CON IDENTIFICACIÓN DE TANQUES)
 -- ============================================================================
 local function OnCellEnter(self)
+    self:SetBackdropBorderColor(0.85, 0.7, 0.3, 1) -- Hover Glow dorado suave
     GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
     GameTooltip:ClearLines()
     
@@ -184,7 +253,43 @@ local function OnCellEnter(self)
 end
 
 local function OnCellLeave(self)
+    local assignedSpell = nil
+    if addonTable.Assignments[self.casterClass] and addonTable.Assignments[self.casterClass][self.casterName] then
+        assignedSpell = addonTable.Assignments[self.casterClass][self.casterName][self.targetID]
+    end
+    if assignedSpell then
+        self:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+    else
+        self:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
+    end
     GameTooltip:Hide()
+end
+
+local function GetNextViableSpell(casterClass, targetClass, currentSpell)
+    local spellList = Constants.BuffDB[casterClass]
+    if not spellList then return "CLEAR" end
+    
+    local options = { "CLEAR" }
+    for _, sID in ipairs(spellList) do
+        local viability = Constants.ClassViability[sID]
+        -- Si no hay viabilidad definida (no es Paladín) o si la clase destino es viable o si es un subgrupo (GROUP_X)
+        if not viability or viability[targetClass] or string.find(targetClass, "GROUP_") then
+            table.insert(options, sID)
+        end
+    end
+    
+    local curIdx = 1
+    local lookupVal = currentSpell or "CLEAR"
+    for i, opt in ipairs(options) do
+        if opt == lookupVal then
+            curIdx = i
+            break
+        end
+    end
+    
+    local nextIdx = curIdx + 1
+    if nextIdx > #options then nextIdx = 1 end
+    return options[nextIdx]
 end
 
 local function OnCellClick(self, button)
@@ -200,41 +305,49 @@ local function OnCellClick(self, button)
     if not addonTable.Assignments[self.casterClass][self.casterName] then addonTable.Assignments[self.casterClass][self.casterName] = {} end
 
     if button == "RightButton" then
-        addonTable.Assignments[self.casterClass][self.casterName][self.targetID] = nil
-        Sync:SendAssignment(self.casterClass, self.casterName, self.targetID, "CLEAR")
+        if IsShiftKeyDown() then
+            for targetID, _ in pairs(addonTable.Assignments[self.casterClass][self.casterName]) do
+                addonTable.Assignments[self.casterClass][self.casterName][targetID] = nil
+                Sync:SendAssignment(self.casterClass, self.casterName, targetID, "CLEAR")
+            end
+        else
+            addonTable.Assignments[self.casterClass][self.casterName][self.targetID] = nil
+            Sync:SendAssignment(self.casterClass, self.casterName, self.targetID, "CLEAR")
+        end
         Grid:UpdateGrid()
     elseif button == "LeftButton" then
         local currentSpell = addonTable.Assignments[self.casterClass][self.casterName][self.targetID]
-        local nextIndex = 1
-        for i, sID in ipairs(spellList) do
-            if sID == currentSpell then
-                nextIndex = i + 1
-                break
-            end
-        end
-        if nextIndex > #spellList then nextIndex = 1 end
+        local nextVal = GetNextViableSpell(self.casterClass, self.targetID, currentSpell)
         
-        local nextSpell = spellList[nextIndex]
-        
-        -- Si es Paladín y se pulsa Shift, se propaga dinámicamente a las clases viables
         if IsShiftKeyDown() and self.casterClass == "PALADIN" then
-            local viability = Constants.ClassViability[nextSpell]
-            if viability then
-                for _, targetClass in ipairs(Constants.ClassOrder) do
-                    if viability[targetClass] then
-                        addonTable.Assignments[self.casterClass][self.casterName][targetClass] = nextSpell
-                        Sync:SendAssignment(self.casterClass, self.casterName, targetClass, nextSpell)
+            if nextVal == "CLEAR" then
+                for targetID, _ in pairs(addonTable.Assignments[self.casterClass][self.casterName]) do
+                    addonTable.Assignments[self.casterClass][self.casterName][targetID] = nil
+                    Sync:SendAssignment(self.casterClass, self.casterName, targetID, "CLEAR")
+                end
+            else
+                local viability = Constants.ClassViability[nextVal]
+                if viability then
+                    for _, targetClass in ipairs(Constants.ClassOrder) do
+                        if viability[targetClass] then
+                            addonTable.Assignments[self.casterClass][self.casterName][targetClass] = nextVal
+                            Sync:SendAssignment(self.casterClass, self.casterName, targetClass, nextVal)
+                        end
                     end
                 end
-                Grid:UpdateGrid()
-                return
             end
+            Grid:UpdateGrid()
+            return
+        else
+            if nextVal == "CLEAR" then
+                addonTable.Assignments[self.casterClass][self.casterName][self.targetID] = nil
+                Sync:SendAssignment(self.casterClass, self.casterName, self.targetID, "CLEAR")
+            else
+                addonTable.Assignments[self.casterClass][self.casterName][self.targetID] = nextVal
+                Sync:SendAssignment(self.casterClass, self.casterName, self.targetID, nextVal)
+            end
+            Grid:UpdateGrid()
         end
-        
-        -- Asignación normal
-        addonTable.Assignments[self.casterClass][self.casterName][self.targetID] = nextSpell
-        Sync:SendAssignment(self.casterClass, self.casterName, self.targetID, nextSpell)
-        Grid:UpdateGrid()
     end
 end
 
@@ -546,16 +659,21 @@ function Grid:UpdateGrid()
                         
                         row.cells = {}
                         for i = 1, 9 do
-                            local cell = CreateFrame("Button", nil, row)
+                            local cell = CreateFrame("Button", nil, row, "BackdropTemplate")
                             cell:SetSize(28, 28)
                             cell:SetPoint("LEFT", row.name, "RIGHT", (i-1)*34, 0)
                             
-                            cell.bg = cell:CreateTexture(nil, "BACKGROUND")
-                            cell.bg:SetAllPoints()
-                            cell.bg:SetColorTexture(0.2, 0.2, 0.2, 0.6)
+                            cell:SetBackdrop({
+                                bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+                                edgeFile = "Interface\\Buttons\\WHITE8X8",
+                                tile = true, tileSize = 16, edgeSize = 1,
+                                insets = { left = 0, right = 0, top = 0, bottom = 0 }
+                            })
+                            cell:SetBackdropColor(0.12, 0.12, 0.12, 0.8)
+                            cell:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
                             
                             cell.icon = cell:CreateTexture(nil, "ARTWORK")
-                            cell.icon:SetAllPoints()
+                            cell.icon:SetAllPoints(cell)
                             
                             cell:RegisterForClicks("LeftButtonUp", "RightButtonUp")
                             cell:SetScript("OnClick", OnCellClick)
@@ -596,10 +714,13 @@ function Grid:UpdateGrid()
                             if assignedSpell then
                                 local _, icon = L:GetSpellInfo(assignedSpell)
                                 cell.icon:SetTexture(icon)
-                                cell.bg:SetColorTexture(1, 1, 1, 1)
+                                cell.icon:SetAlpha(1.0)
+                                cell:SetBackdropColor(0.06, 0.06, 0.06, 0.9)
+                                cell:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
                             else
                                 cell.icon:SetTexture(nil)
-                                cell.bg:SetColorTexture(0.2, 0.2, 0.2, 0.6)
+                                cell:SetBackdropColor(0.12, 0.12, 0.12, 0.8)
+                                cell:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
                             end
                             cell:Show()
                         else
@@ -644,7 +765,7 @@ end
 -- ============================================================================
 -- VENTANA DE SUB-ASIGNACIONES INDIVIDUALES (MOCKUP v1.3.0)
 -- ============================================================================
-local SubFrame = CreateFrame("Frame", "RaidBuffetSubAssignFrame", UIParent, "BasicFrameTemplateWithInset")
+local SubFrame = CreateFrame("Frame", "RaidBuffetSubAssignFrame", UIParent, "BackdropTemplate")
 SubFrame:SetSize(440, 240)
 SubFrame:SetPoint("CENTER", UIParent, "CENTER", 100, 0)
 SubFrame:SetMovable(true)
@@ -654,12 +775,77 @@ SubFrame:SetScript("OnDragStart", SubFrame.StartMoving)
 SubFrame:SetScript("OnDragStop", SubFrame.StopMovingOrSizing)
 SubFrame:Hide()
 
-SubFrame.title = SubFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-SubFrame.title:SetPoint("CENTER", SubFrame.TitleBg, "CENTER", 0, 0)
+SubFrame:SetBackdrop({
+    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+    edgeFile = "Interface\\Buttons\\WHITE8X8",
+    tile = true, tileSize = 16, edgeSize = 1,
+    insets = { left = 0, right = 0, top = 0, bottom = 0 }
+})
+SubFrame:SetBackdropColor(0.06, 0.06, 0.06, 0.94)
+SubFrame:SetBackdropBorderColor(0.18, 0.18, 0.18, 1)
+
+SubFrame.header = CreateFrame("Frame", nil, SubFrame, "BackdropTemplate")
+SubFrame.header:SetSize(440, 24)
+SubFrame.header:SetPoint("TOPLEFT", SubFrame, "TOPLEFT", 0, 0)
+SubFrame.header:SetBackdrop({
+    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+    edgeFile = "Interface\\Buttons\\WHITE8X8",
+    tile = true, tileSize = 16, edgeSize = 1,
+    insets = { left = 0, right = 0, top = 0, bottom = 0 }
+})
+SubFrame.header:SetBackdropColor(0.12, 0.12, 0.12, 1)
+SubFrame.header:SetBackdropBorderColor(0.18, 0.18, 0.18, 1)
+
+SubFrame.header:EnableMouse(true)
+SubFrame.header:RegisterForDrag("LeftButton")
+SubFrame.header:SetScript("OnDragStart", function() SubFrame:StartMoving() end)
+SubFrame.header:SetScript("OnDragStop", function() SubFrame:StopMovingOrSizing() end)
+
+SubFrame.title = SubFrame.header:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+SubFrame.title:SetPoint("LEFT", 10, 0)
+SubFrame.title:SetTextColor(0.8, 0.6, 0.2)
+
+SubFrame.closeBtn = CreateFrame("Button", nil, SubFrame.header, "BackdropTemplate")
+SubFrame.closeBtn:SetSize(16, 16)
+SubFrame.closeBtn:SetPoint("RIGHT", -6, 0)
+SubFrame.closeBtn:SetBackdrop({
+    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+    edgeFile = "Interface\\Buttons\\WHITE8X8",
+    tile = true, tileSize = 16, edgeSize = 1,
+})
+SubFrame.closeBtn:SetBackdropColor(0.2, 0.1, 0.1, 1)
+SubFrame.closeBtn:SetBackdropBorderColor(0.3, 0.15, 0.15, 1)
+SubFrame.closeBtn.text = SubFrame.closeBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+SubFrame.closeBtn.text:SetPoint("CENTER", 0, 0)
+SubFrame.closeBtn.text:SetText("X")
+SubFrame.closeBtn.text:SetTextColor(0.8, 0.3, 0.3)
+SubFrame.closeBtn:SetScript("OnClick", function() SubFrame:Hide() end)
+SubFrame.closeBtn:SetScript("OnEnter", function(self)
+    self:SetBackdropColor(0.4, 0.15, 0.15, 1)
+end)
+SubFrame.closeBtn:SetScript("OnLeave", function(self)
+    self:SetBackdropColor(0.2, 0.1, 0.1, 1)
+end)
 
 local SubScrollFrame = CreateFrame("ScrollFrame", "RaidBuffetSubAssignScrollFrame", SubFrame, "UIPanelScrollFrameTemplate")
-SubScrollFrame:SetPoint("TOPLEFT", 10, -35)
+SubScrollFrame:SetPoint("TOPLEFT", 10, -50)
 SubScrollFrame:SetPoint("BOTTOMRIGHT", -30, 10)
+
+if _G["RaidBuffetSubAssignScrollFrameScrollBar"] then
+    _G["RaidBuffetSubAssignScrollFrameScrollBar"]:SetAlpha(0)
+    _G["RaidBuffetSubAssignScrollFrameScrollBarScrollUpButton"]:SetAlpha(0)
+    _G["RaidBuffetSubAssignScrollFrameScrollBarScrollDownButton"]:SetAlpha(0)
+end
+
+SubFrame.casterLabel = SubFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+SubFrame.casterLabel:SetPoint("TOPLEFT", 15, -32)
+SubFrame.casterLabel:SetText("Caster (Bufa)")
+SubFrame.casterLabel:SetTextColor(0.6, 0.6, 0.6)
+
+SubFrame.targetLabel = SubFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+SubFrame.targetLabel:SetPoint("TOPLEFT", 115, -32)
+SubFrame.targetLabel:SetText("Objetivos (Reciben)")
+SubFrame.targetLabel:SetTextColor(0.6, 0.6, 0.6)
 
 local SubScrollChild = CreateFrame("Frame", "RaidBuffetSubAssignScrollChild", SubScrollFrame)
 SubScrollChild:SetSize(380, 1)
@@ -681,11 +867,12 @@ contextMenu:SetFrameStrata("DIALOG")
 if contextMenu.SetBackdrop then
     contextMenu:SetBackdrop({
         bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
-        edgeFile = "Interface\\DialogFrame\\UI-DialogBox-Border",
-        tile = true, tileSize = 16, edgeSize = 16,
-        insets = { left = 4, right = 4, top = 4, bottom = 4 }
+        edgeFile = "Interface\\Buttons\\WHITE8X8",
+        tile = true, tileSize = 16, edgeSize = 1,
+        insets = { left = 0, right = 0, top = 0, bottom = 0 }
     })
-    contextMenu:SetBackdropColor(0, 0, 0, 0.95)
+    contextMenu:SetBackdropColor(0.08, 0.08, 0.08, 0.95)
+    contextMenu:SetBackdropBorderColor(0.18, 0.18, 0.18, 1)
 end
 contextMenu:Hide()
 contextMenu.buttons = {}
@@ -765,6 +952,30 @@ local function OpenAssignMenu(anchorBtn, casterName, targetName, targetClass)
         contextMenu:Hide()
     end)
     clearBtn:Show()
+    index = index + 1
+    
+    -- Botón de Ninguno (No bufar)
+    local noneBtn = contextMenu.buttons[index]
+    if not noneBtn then
+        noneBtn = CreateFrame("Button", nil, contextMenu)
+        noneBtn:SetSize(150, 20)
+        noneBtn.text = noneBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+        noneBtn.text:SetPoint("LEFT", 5, 0)
+        contextMenu.buttons[index] = noneBtn
+    end
+    noneBtn:SetPoint("TOPLEFT", contextMenu, "TOPLEFT", 5, -5 - (index-1)*20)
+    noneBtn.text:SetText("|cffff5555Ninguno (No bufar)|r")
+    noneBtn:SetScript("OnClick", function()
+        if not addonTable.Assignments["PALADIN"] then addonTable.Assignments["PALADIN"] = {} end
+        if not addonTable.Assignments["PALADIN"][casterName] then addonTable.Assignments["PALADIN"][casterName] = {} end
+        
+        addonTable.Assignments["PALADIN"][casterName][targetName] = "CLEAR"
+        Sync:SendAssignment("PALADIN", casterName, targetName, "CLEAR")
+        Grid:UpdateGrid()
+        SubFrame:RefreshList()
+        contextMenu:Hide()
+    end)
+    noneBtn:Show()
     index = index + 1
     
     -- Añadir bendiciones
@@ -965,9 +1176,18 @@ function SubFrame:RefreshList()
             
             row.buttons = {}
             for pIdx = 1, 8 do
-                local btn = CreateFrame("Button", nil, row)
+                local btn = CreateFrame("Button", nil, row, "BackdropTemplate")
                 btn:SetSize(20, 20)
                 btn:SetPoint("LEFT", row.name, "RIGHT", (pIdx-1)*40 + 8, 0)
+                
+                btn:SetBackdrop({
+                    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+                    edgeFile = "Interface\\Buttons\\WHITE8X8",
+                    tile = true, tileSize = 16, edgeSize = 1,
+                    insets = { left = 0, right = 0, top = 0, bottom = 0 }
+                })
+                btn:SetBackdropColor(0.12, 0.12, 0.12, 0.8)
+                btn:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
                 
                 btn.icon = btn:CreateTexture(nil, "ARTWORK")
                 btn.icon:SetAllPoints(btn)
@@ -1002,21 +1222,37 @@ function SubFrame:RefreshList()
                     local _, icon = L:GetSpellInfo(assignedSpell)
                     btn.icon:SetTexture(icon)
                     if isIndividual then
-                        btn.icon:SetAlpha(1.0) -- Asignación individual explícita
+                        btn.icon:SetAlpha(1.0)
+                        btn:SetBackdropColor(0.06, 0.06, 0.06, 0.9)
+                        btn:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
                     else
-                        btn.icon:SetAlpha(0.35) -- Heredado de la clase
+                        btn.icon:SetAlpha(0.35)
+                        btn:SetBackdropColor(0.12, 0.12, 0.12, 0.8)
+                        btn:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
                     end
                 else
                     btn.icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
                     btn.icon:SetAlpha(0.12)
+                    btn:SetBackdropColor(0.12, 0.12, 0.12, 0.8)
+                    btn:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
                 end
                 
-                btn:SetScript("OnClick", function()
+                btn:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+                btn:SetScript("OnClick", function(self, button)
                     if not HasEditPermissions() then
                         print("|cffff0000[RaidBuffet]|r No tienes permisos de edición.")
                         return
                     end
-                    OpenAssignMenu(btn, palName, pData.name, targetClass)
+                    if button == "RightButton" then
+                        if addonTable.Assignments["PALADIN"] and addonTable.Assignments["PALADIN"][palName] then
+                            addonTable.Assignments["PALADIN"][palName][pData.name] = nil
+                            Sync:SendAssignment("PALADIN", palName, pData.name, "CLEAR")
+                            Grid:UpdateGrid()
+                            SubFrame:RefreshList()
+                        end
+                    else
+                        OpenAssignMenu(btn, palName, pData.name, targetClass)
+                    end
                 end)
                 
                 btn:EnableMouseWheel(true)
@@ -1080,6 +1316,22 @@ function SubFrame:RefreshList()
                     
                     Grid:UpdateGrid()
                     SubFrame:RefreshList()
+                end)
+                
+                btn:SetScript("OnEnter", function(self)
+                    self:SetBackdropBorderColor(0.85, 0.7, 0.3, 1) -- Hover Glow dorado suave
+                end)
+                
+                btn:SetScript("OnLeave", function(self)
+                    local assignedSpell = nil
+                    if addonTable.Assignments["PALADIN"] and addonTable.Assignments["PALADIN"][palName] then
+                        assignedSpell = addonTable.Assignments["PALADIN"][palName][pData.name]
+                    end
+                    if assignedSpell then
+                        self:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+                    else
+                        self:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
+                    end
                 end)
                 
                 btn:Show()

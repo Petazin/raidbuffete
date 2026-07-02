@@ -3,7 +3,7 @@ local L = addonTable.L
 local Scanner = addonTable.Scanner
 local Constants = addonTable.Constants
 
-local ReportFrame = CreateFrame("Frame", "RaidBuffetReportFrame", UIParent, "BasicFrameTemplateWithInset")
+local ReportFrame = CreateFrame("Frame", "RaidBuffetReportFrame", UIParent, "BackdropTemplate")
 addonTable.UI.ReportFrame = ReportFrame
 
 ReportFrame:SetSize(480, 360)
@@ -15,19 +15,74 @@ ReportFrame:SetScript("OnDragStart", ReportFrame.StartMoving)
 ReportFrame:SetScript("OnDragStop", ReportFrame.StopMovingOrSizing)
 ReportFrame:Hide()
 
-ReportFrame.title = ReportFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-ReportFrame.title:SetPoint("CENTER", ReportFrame.TitleBg, "CENTER", 0, 0)
+ReportFrame:SetBackdrop({
+    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+    edgeFile = "Interface\\Buttons\\WHITE8X8",
+    tile = true, tileSize = 16, edgeSize = 1,
+    insets = { left = 0, right = 0, top = 0, bottom = 0 }
+})
+ReportFrame:SetBackdropColor(0.06, 0.06, 0.06, 0.94)
+ReportFrame:SetBackdropBorderColor(0.18, 0.18, 0.18, 1)
+
+ReportFrame.header = CreateFrame("Frame", nil, ReportFrame, "BackdropTemplate")
+ReportFrame.header:SetSize(480, 24)
+ReportFrame.header:SetPoint("TOPLEFT", ReportFrame, "TOPLEFT", 0, 0)
+ReportFrame.header:SetBackdrop({
+    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+    edgeFile = "Interface\\Buttons\\WHITE8X8",
+    tile = true, tileSize = 16, edgeSize = 1,
+    insets = { left = 0, right = 0, top = 0, bottom = 0 }
+})
+ReportFrame.header:SetBackdropColor(0.12, 0.12, 0.12, 1)
+ReportFrame.header:SetBackdropBorderColor(0.18, 0.18, 0.18, 1)
+
+ReportFrame.header:EnableMouse(true)
+ReportFrame.header:RegisterForDrag("LeftButton")
+ReportFrame.header:SetScript("OnDragStart", function() ReportFrame:StartMoving() end)
+ReportFrame.header:SetScript("OnDragStop", function() ReportFrame:StopMovingOrSizing() end)
+
+ReportFrame.title = ReportFrame.header:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+ReportFrame.title:SetPoint("LEFT", 10, 0)
 ReportFrame.title:SetText("RaidBuffet - Reporte de Faltantes")
+ReportFrame.title:SetTextColor(0.8, 0.6, 0.2)
+
+ReportFrame.closeBtn = CreateFrame("Button", nil, ReportFrame.header, "BackdropTemplate")
+ReportFrame.closeBtn:SetSize(16, 16)
+ReportFrame.closeBtn:SetPoint("RIGHT", -6, 0)
+ReportFrame.closeBtn:SetBackdrop({
+    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+    edgeFile = "Interface\\Buttons\\WHITE8X8",
+    tile = true, tileSize = 16, edgeSize = 1,
+})
+ReportFrame.closeBtn:SetBackdropColor(0.2, 0.1, 0.1, 1)
+ReportFrame.closeBtn:SetBackdropBorderColor(0.3, 0.15, 0.15, 1)
+ReportFrame.closeBtn.text = ReportFrame.closeBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+ReportFrame.closeBtn.text:SetPoint("CENTER", 0, 0)
+ReportFrame.closeBtn.text:SetText("X")
+ReportFrame.closeBtn.text:SetTextColor(0.8, 0.3, 0.3)
+ReportFrame.closeBtn:SetScript("OnClick", function() ReportFrame:Hide() end)
+ReportFrame.closeBtn:SetScript("OnEnter", function(self)
+    self:SetBackdropColor(0.4, 0.15, 0.15, 1)
+end)
+ReportFrame.closeBtn:SetScript("OnLeave", function(self)
+    self:SetBackdropColor(0.2, 0.1, 0.1, 1)
+end)
 
 -- ============================================================================
 -- CONTENEDOR DE SCROLL PARA FILAS
 -- ============================================================================
 local ScrollFrame = CreateFrame("ScrollFrame", "RaidBuffetReportScrollFrame", ReportFrame, "UIPanelScrollFrameTemplate")
 ScrollFrame:SetPoint("TOPLEFT", 10, -35)
-ScrollFrame:SetPoint("BOTTOMRIGHT", -30, 50) -- Espacio inferior para botones
+ScrollFrame:SetPoint("BOTTOMRIGHT", -30, 50)
+
+if _G["RaidBuffetReportScrollFrameScrollBar"] then
+    _G["RaidBuffetReportScrollFrameScrollBar"]:SetAlpha(0)
+    _G["RaidBuffetReportScrollFrameScrollBarScrollUpButton"]:SetAlpha(0)
+    _G["RaidBuffetReportScrollFrameScrollBarScrollDownButton"]:SetAlpha(0)
+end
 
 local ScrollChild = CreateFrame("Frame", "RaidBuffetReportScrollChild", ScrollFrame)
-ScrollChild:SetSize(420, 1) -- El alto se calculará dinámicamente
+ScrollChild:SetSize(420, 1)
 ScrollFrame:SetScrollChild(ScrollChild)
 
 ReportFrame.rows = {}
@@ -318,28 +373,77 @@ end
 -- ============================================================================
 
 -- Botón Refrescar
-local refreshBtn = CreateFrame("Button", "RaidBuffetReportRefreshBtn", ReportFrame, "UIPanelButtonTemplate")
+local refreshBtn = CreateFrame("Button", "RaidBuffetReportRefreshBtn", ReportFrame, "BackdropTemplate")
 refreshBtn:SetSize(90, 24)
 refreshBtn:SetPoint("BOTTOMLEFT", 10, 10)
-refreshBtn:SetText("Refrescar")
+refreshBtn:SetBackdrop({
+    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+    edgeFile = "Interface\\Buttons\\WHITE8X8",
+    tile = true, tileSize = 16, edgeSize = 1,
+})
+refreshBtn:SetBackdropColor(0.14, 0.14, 0.14, 1)
+refreshBtn:SetBackdropBorderColor(0.7, 0.5, 0.2, 0.5)
+refreshBtn.text = refreshBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+refreshBtn.text:SetPoint("CENTER", 0, 0)
+refreshBtn.text:SetText("Refrescar")
+refreshBtn:SetScript("OnEnter", function(self)
+    self:SetBackdropColor(0.22, 0.22, 0.22, 1)
+    self:SetBackdropBorderColor(0.85, 0.7, 0.3, 1)
+end)
+refreshBtn:SetScript("OnLeave", function(self)
+    self:SetBackdropColor(0.14, 0.14, 0.14, 1)
+    self:SetBackdropBorderColor(0.7, 0.5, 0.2, 0.5)
+end)
 refreshBtn:SetScript("OnClick", function()
     ReportFrame:UpdateReport()
 end)
 
--- Botón Anunciar Asignaciones
-local announceAssignBtn = CreateFrame("Button", "RaidBuffetReportAnnounceAssignBtn", ReportFrame, "UIPanelButtonTemplate")
+local announceAssignBtn = CreateFrame("Button", "RaidBuffetReportAnnounceAssignBtn", ReportFrame, "BackdropTemplate")
 announceAssignBtn:SetSize(140, 24)
 announceAssignBtn:SetPoint("BOTTOMLEFT", refreshBtn, "BOTTOMRIGHT", 10, 0)
-announceAssignBtn:SetText("Anunciar Tareas")
+announceAssignBtn:SetBackdrop({
+    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+    edgeFile = "Interface\\Buttons\\WHITE8X8",
+    tile = true, tileSize = 16, edgeSize = 1,
+})
+announceAssignBtn:SetBackdropColor(0.14, 0.14, 0.14, 1)
+announceAssignBtn:SetBackdropBorderColor(0.7, 0.5, 0.2, 0.5)
+announceAssignBtn.text = announceAssignBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+announceAssignBtn.text:SetPoint("CENTER", 0, 0)
+announceAssignBtn.text:SetText("Anunciar Tareas")
+announceAssignBtn:SetScript("OnEnter", function(self)
+    self:SetBackdropColor(0.22, 0.22, 0.22, 1)
+    self:SetBackdropBorderColor(0.85, 0.7, 0.3, 1)
+end)
+announceAssignBtn:SetScript("OnLeave", function(self)
+    self:SetBackdropColor(0.14, 0.14, 0.14, 1)
+    self:SetBackdropBorderColor(0.7, 0.5, 0.2, 0.5)
+end)
 announceAssignBtn:SetScript("OnClick", function()
     ReportFrame:AnnounceAssignments()
 end)
 
--- Botón Anunciar Faltantes
-local announceMissingBtn = CreateFrame("Button", "RaidBuffetReportAnnounceMissingBtn", ReportFrame, "UIPanelButtonTemplate")
+local announceMissingBtn = CreateFrame("Button", "RaidBuffetReportAnnounceMissingBtn", ReportFrame, "BackdropTemplate")
 announceMissingBtn:SetSize(140, 24)
 announceMissingBtn:SetPoint("BOTTOMLEFT", announceAssignBtn, "BOTTOMRIGHT", 10, 0)
-announceMissingBtn:SetText("Anunciar Faltantes")
+announceMissingBtn:SetBackdrop({
+    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+    edgeFile = "Interface\\Buttons\\WHITE8X8",
+    tile = true, tileSize = 16, edgeSize = 1,
+})
+announceMissingBtn:SetBackdropColor(0.14, 0.14, 0.14, 1)
+announceMissingBtn:SetBackdropBorderColor(0.7, 0.5, 0.2, 0.5)
+announceMissingBtn.text = announceMissingBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+announceMissingBtn.text:SetPoint("CENTER", 0, 0)
+announceMissingBtn.text:SetText("Anunciar Faltantes")
+announceMissingBtn:SetScript("OnEnter", function(self)
+    self:SetBackdropColor(0.22, 0.22, 0.22, 1)
+    self:SetBackdropBorderColor(0.85, 0.7, 0.3, 1)
+end)
+announceMissingBtn:SetScript("OnLeave", function(self)
+    self:SetBackdropColor(0.14, 0.14, 0.14, 1)
+    self:SetBackdropBorderColor(0.7, 0.5, 0.2, 0.5)
+end)
 announceMissingBtn:SetScript("OnClick", function()
     ReportFrame:AnnounceMissing()
 end)
@@ -360,6 +464,14 @@ local function UpdateChannelLabel()
     end
     channelLbl:SetText("Canal activo: |cff00ff00" .. channelName .. "|r")
 end
+
+ReportFrame:RegisterEvent("UNIT_AURA")
+ReportFrame:RegisterEvent("GROUP_ROSTER_UPDATE")
+ReportFrame:SetScript("OnEvent", function(self, event, ...)
+    if self:IsShown() then
+        self:UpdateReport()
+    end
+end)
 
 ReportFrame:SetScript("OnShow", function(self)
     self:UpdateReport()
