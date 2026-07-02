@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.1] - 2026-07-02
+
+### Added
+- **Guía de Ayuda Rápida (`Grid.helpBtn`)**: Añadido un botón dorado minimalista `"?"` en la barra superior al lado del botón de cerrar. Al pasar el cursor, muestra una guía de controles estructurada e intuitiva.
+- **Instructivos de Descubrimiento de UX**: Enriquecidos los tooltips de los encabezados de columna (`Gue`, `Pí`, etc.) para listar dinámicamente los miembros de la raid y mostrar la instrucción explícita `"Clic Derecho: Abrir Asignación Individual"`.
+
 ## [1.5.0] - 2026-07-02
 
 ### Changed

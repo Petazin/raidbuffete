@@ -2,6 +2,15 @@
 
 Este archivo registra las decisiones arquitectónicas y el estado del proyecto generado por la IA en el addon RaidBuffet.
 
+## [02/07/2026] v1.5.1 - UX Descubrible: Guía de Ayuda Integrada y Tooltips de Eje
+
+- **Botón de Ayuda General (`Grid.helpBtn`)**:
+  - Incorporado un botón minimalista dorado con el texto `"?"` en la esquina superior derecha de la cabecera principal, al lado del botón cerrar.
+  - Al pasar el ratón (`OnEnter`), despliega una guía de controles completa (clics de asignación, borrado, atajos de Shift y asignación individual).
+- **Tooltips Explicativos de Cabecera**:
+  - Enriquecidos los tooltips de los encabezados de clase (`Gue`, `Pí`, `Cha`, etc.) para listar de forma dinámica los miembros actuales de esa categoría en el grupo.
+  - Añadida una instrucción directa de color verde brillante que indica explícitamente al usuario: `"Clic Derecho: Abrir Asignación Individual"`, facilitando descubrir esta característica oculta.
+
 ## [02/07/2026] v1.5.0 - Lavado de Cara Visual Completo: Diseño Minimalista Flat (Estilo ElvUI) y Pulido de UX
 
 - **Eliminación de Elementos Clásicos**:

@@ -69,6 +69,45 @@ Grid.closeBtn:SetScript("OnLeave", function(self)
     self:SetBackdropColor(0.2, 0.1, 0.1, 1)
 end)
 
+Grid.helpBtn = CreateFrame("Button", nil, Grid.header, "BackdropTemplate")
+Grid.helpBtn:SetSize(16, 16)
+Grid.helpBtn:SetPoint("RIGHT", Grid.closeBtn, "LEFT", -4, 0)
+Grid.helpBtn:SetBackdrop({
+    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+    edgeFile = "Interface\\Buttons\\WHITE8X8",
+    tile = true, tileSize = 16, edgeSize = 1,
+})
+Grid.helpBtn:SetBackdropColor(0.12, 0.12, 0.12, 1)
+Grid.helpBtn:SetBackdropBorderColor(0.7, 0.5, 0.2, 0.5)
+Grid.helpBtn.text = Grid.helpBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+Grid.helpBtn.text:SetPoint("CENTER", 0, 0)
+Grid.helpBtn.text:SetText("?")
+Grid.helpBtn.text:SetTextColor(0.7, 0.5, 0.2)
+Grid.helpBtn:SetScript("OnEnter", function(self)
+    self:SetBackdropColor(0.2, 0.2, 0.2, 1)
+    self:SetBackdropBorderColor(0.85, 0.7, 0.3, 1)
+    GameTooltip:SetOwner(self, "ANCHOR_TOPLEFT")
+    GameTooltip:ClearLines()
+    GameTooltip:AddLine("Guía Rápida de Controles:", 1, 0.8, 0)
+    GameTooltip:AddLine("|cff00ffffClic Izq (Celda)|r: Asignar / Ciclar buff de clase")
+    GameTooltip:AddLine("|cff00ffffClic Der (Celda)|r: Borrar asignación")
+    GameTooltip:AddLine("|cff00ffffRueda Ratón (Celda)|r: Ciclar buffs cómodamente")
+    GameTooltip:AddLine(" ")
+    GameTooltip:AddLine("|cff00ff00Atajos de Paladín (Shift):|r", 0.8, 0.8, 0.8)
+    GameTooltip:AddLine("|cff00ffffShift + Clic Izq|r: Propagar buff a clases viables")
+    GameTooltip:AddLine("|cff00ffffShift + Clic Der|r: Limpiar todas las tareas del paladín")
+    GameTooltip:AddLine(" ")
+    GameTooltip:AddLine("|cff00ff00Asignación por Jugador (Individual):|r", 0.8, 0.8, 0.8)
+    GameTooltip:AddLine("|cff00ffffClic Derecho en Cabecera|r (ej. Gue, Pí):")
+    GameTooltip:AddLine("  Abre el panel para asignar bendiciones individuales.")
+    GameTooltip:Show()
+end)
+Grid.helpBtn:SetScript("OnLeave", function(self)
+    self:SetBackdropColor(0.12, 0.12, 0.12, 1)
+    self:SetBackdropBorderColor(0.7, 0.5, 0.2, 0.5)
+    GameTooltip:Hide()
+end)
+
 local showAllCheck = CreateFrame("CheckButton", "RaidBuffetShowAllCheck", Grid, "UICheckButtonTemplate")
 showAllCheck:SetPoint("BOTTOMLEFT", 10, 5)
 _G[showAllCheck:GetName() .. "Text"]:SetText("Mostrar todas las clases")
@@ -635,6 +674,84 @@ function Grid:UpdateGrid()
                             if button == "RightButton" then
                                 Grid:OpenSubAssignFrame(self, classType, targetID)
                             end
+                        end)
+                        btn:SetScript("OnEnter", function(self)
+                            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+                            GameTooltip:ClearLines()
+                            
+                            local displayName
+                            if targetType == "CLASS" then
+                                displayName = L:GetClassName(targetID) or targetID
+                            else
+                                displayName = "Grupo " .. string.match(targetID, "GROUP_(%d+)")
+                            end
+                            
+                            GameTooltip:AddLine(displayName, 1, 0.8, 0)
+                            
+                            local members = {}
+                            if IsInRaid() then
+                                for rIdx = 1, GetNumGroupMembers() do
+                                    local name, _, subgroup, _, _, classFileName = GetRaidRosterInfo(rIdx)
+                                    if name then
+                                        name = string.match(name, "([^%-]+)")
+                                        if targetType == "CLASS" then
+                                            if classFileName == targetID then
+                                                table.insert(members, name)
+                                            end
+                                        else
+                                            if tostring(subgroup) == string.match(targetID, "GROUP_(%d+)") then
+                                                table.insert(members, name)
+                                            end
+                                        end
+                                    end
+                                end
+                            elseif IsInGroup() then
+                                for pIdx = 1, GetNumSubgroupMembers() do
+                                    local unit = "party" .. pIdx
+                                    local name = UnitName(unit)
+                                    local _, classFileName = UnitClass(unit)
+                                    if name then
+                                        name = string.match(name, "([^%-]+)")
+                                        if targetType == "CLASS" and classFileName == targetID then
+                                            table.insert(members, name)
+                                        end
+                                    end
+                                end
+                                local pName = UnitName("player")
+                                local _, pClass = UnitClass("player")
+                                if pName then
+                                    pName = string.match(pName, "([^%-]+)")
+                                    if targetType == "CLASS" and pClass == targetID then
+                                        table.insert(members, pName)
+                                    end
+                                end
+                            else
+                                local pName = UnitName("player")
+                                local _, pClass = UnitClass("player")
+                                if pName then
+                                    pName = string.match(pName, "([^%-]+)")
+                                    if targetType == "CLASS" and pClass == targetID then
+                                        table.insert(members, pName)
+                                    end
+                                end
+                            end
+                            
+                            if #members > 0 then
+                                GameTooltip:AddLine("Miembros: |cffffffff" .. table.concat(members, ", ") .. "|r", 0.9, 0.9, 0.9)
+                            else
+                                GameTooltip:AddLine("Ningún jugador activo.", 0.5, 0.5, 0.5)
+                            end
+                            
+                            GameTooltip:AddLine(" ")
+                            if classType == "PALADIN" then
+                                GameTooltip:AddLine("|cff00ffffClic Derecho|r: Abrir Asignación Individual", 0.2, 1, 0.2)
+                            else
+                                GameTooltip:AddLine("Los otros casters bufean por clase completa.", 0.6, 0.6, 0.6)
+                            end
+                            GameTooltip:Show()
+                        end)
+                        btn:SetScript("OnLeave", function(self)
+                            GameTooltip:Hide()
                         end)
                         btn:Show()
                     else
