@@ -44,9 +44,29 @@ end
 
 -- Comprueba si una unidad es Tanque Principal de la raid
 function Scanner:IsMainTank(unit)
-    local mtName = GetPartyAssignment("MAINTANK", unit)
-    local uName = UnitName(unit)
-    return mtName and uName and mtName == uName
+    -- 1. Doble validación: Comprobar asignación de party nativa
+    local mtVal = GetPartyAssignment("MAINTANK", unit)
+    if mtVal == true or mtVal == 1 then
+        return true
+    elseif type(mtVal) == "string" then
+        local uName = UnitName(unit)
+        if uName then
+            local mtClean = string.match(mtVal, "([^%-]+)")
+            local uClean = string.match(uName, "([^%-]+)")
+            if mtClean == uClean then return true end
+        end
+    end
+    
+    -- 2. Doble validación: Comprobar rol de roster de banda si aplica
+    if IsInRaid() and string.sub(unit, 1, 4) == "raid" then
+        local index = tonumber(string.sub(unit, 5))
+        if index then
+            local _, _, _, _, _, _, _, _, _, role = GetRaidRosterInfo(index)
+            if role == "MAINTANK" then return true end
+        end
+    end
+    
+    return false
 end
 
 local lastWhisperTimes = {} -- Cooldown de 60 segundos para evitar spam por tanque
@@ -316,4 +336,61 @@ function Scanner:GetMissingBuffsReport()
     end
     
     return report
+end
+
+-- Comprueba si hay peligro de que un tanque reciba Salvación de clase
+function Scanner:HasSalvationTankHazard(casterName, targetClass)
+    if not addonTable.Assignments["PALADIN"] or not addonTable.Assignments["PALADIN"][casterName] then
+        return false
+    end
+    local spell = addonTable.Assignments["PALADIN"][casterName][targetClass]
+    if spell ~= 25895 then
+        return false
+    end
+    
+    -- Recopilar jugadores de esa clase
+    local roster = {}
+    if IsInRaid() then
+        for i = 1, GetNumGroupMembers() do
+            local name, _, _, _, _, class = GetRaidRosterInfo(i)
+            if name and class == targetClass then
+                name = string.match(name, "([^%-]+)")
+                table.insert(roster, { name = name, unit = "raid" .. i })
+            end
+        end
+    elseif IsInGroup() then
+        for i = 1, GetNumSubgroupMembers() do
+            local unit = "party" .. i
+            local name = UnitName(unit)
+            local _, class = UnitClass(unit)
+            if name and class == targetClass then
+                name = string.match(name, "([^%-]+)")
+                table.insert(roster, { name = name, unit = unit })
+            end
+        end
+        local name = UnitName("player")
+        local _, class = UnitClass("player")
+        if name and class == targetClass then
+            name = string.match(name, "([^%-]+)")
+            table.insert(roster, { name = name, unit = "player" })
+        end
+    else
+        local name = UnitName("player")
+        local _, class = UnitClass("player")
+        if name and class == targetClass then
+            name = string.match(name, "([^%-]+)")
+            table.insert(roster, { name = name, unit = "player" })
+        end
+    end
+    
+    for _, pData in ipairs(roster) do
+        if Scanner:IsMainTank(pData.unit) then
+            local indSpell = addonTable.Assignments["PALADIN"][casterName][pData.name]
+            -- Si no tiene individual, o la individual es Salvación (1038 / 25895 / CLEAR que significa sin bendición pero no anula la de clase si el paladín vuelve a tirar clase)
+            if not indSpell or indSpell == 25895 or indSpell == 1038 or indSpell == "CLEAR" then
+                return true, pData.name
+            end
+        end
+    end
+    return false
 end

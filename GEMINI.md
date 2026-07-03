@@ -2,6 +2,60 @@
 
 Este archivo registra las decisiones arquitectónicas y el estado del proyecto generado por la IA en el addon RaidBuffet.
 
+## [03/07/2026] v1.6.3-prep - Motor de Propuestas de Asignación Inteligente (Varita Mágica)
+
+- **Motor Lógico de Propuestas (`Core/Proposal.lua`)**:
+  - Implementado un algoritmo combinatorio inteligente para distribuir buffs óptimamente en bandas de 10 y 25 jugadores.
+  - Prioriza talentos mejorados de la caché (`Improved Mark of the Wild` en Druidas, `Improved Fortitude/Divine Spirit` en Sacerdotes, y especializaciones de Paladín como Holy, Prot, Retri).
+  - Distribuye bendiciones superiores de clase según la cantidad de paladines activos (1 a 4+) y los roles de combate de destino (Casters, Melees, Tanques).
+  - **Soporte de Espíritu Divino para Sacerdote Único**: Si hay 1 solo sacerdote en la raid, el motor le asigna Rezo de Entereza por grupo a toda la banda, y además le asigna de forma automática Espíritu Divino (Individual) a todos los jugadores que son casters y sanadores, resolviendo la restricción física de la grilla de grupos.
+  - **Reparto Equitativo de Subgrupos (Round-Robin)**: Si hay múltiples druidas, sacerdotes o magos en la raid, el motor distribuye de forma equitativa los subgrupos activos (`GROUP_1` a `GROUP_8`) entre los casters de esa clase. Para sacerdotes, si hay 2 se divide Entereza/Espíritu; si hay 3 o más, los primeros se reparten Entereza y el último el Espíritu. Esto equilibra el coste de componentes y maná en la raid.
+  - Protege de forma proactiva a los tanques de recibir Salvación, asignándoles individualmente bendiciones de Reyes/Santuario/Luz para anular el buff de clase.
+- **Escáner y Detección Automática de Especialidades de Buffs (`Core/Core.lua` & `UI/Grid.lua`)**:
+  - **Detección Activa (Inspección Asíncrona)**: Implementada una cola de inspección diferida y secuencial (cada 1.5s para no saturar al cliente) que envía peticiones `NotifyInspect` a los druidas, sacerdotes y paladines a rango de inspección al cambiar de objetivo, mouseover o al actualizarse el roster del grupo. Procesa los talentos reales en el evento `INSPECT_READY` y los guarda en la caché.
+  - **Detección Pasiva por Buffs Activos**: En la grilla principal, si una unidad carece de caché, lee pasivamente sus buffs (Forma de Árbol de Vida -> Restauración, Forma de Lechúcico -> Equilibrio, Forma de Sombra -> Sombra, Furia Recta -> Protección) y pre-carga automáticamente sus talentos correspondientes en la caché. Esto funciona sin límite de rango de inspección.
+  - **Sobreescritura Manual**: Mantiene la asignación manual por clic derecho del nombre del buffer en la grilla como override prioritario.
+- **Indicador Visual de Buffs Mejorados (`UI/Grid.lua`)**:
+  - Implementada una etiqueta visual de color verde brillante al lado del nombre de cada caster (ej: `[Sab]`, `[Pod]`, `[Mar]`, `[Ent,Esp]`) indicando qué talentos de buff mejorados posee en base a la caché local.
+- **Drawer de Vista Previa de Propuesta (`UI/Grid.lua`)**:
+  - Creado el panel acoplado dinámico `RaidBuffetProposalPanel` a la derecha de la UI principal (siguiendo el mismo estilo de bordes de 1px y fondo negro translúcido).
+  - Muestra un desglose descriptivo de la propuesta calculada.
+  - Implementados botones con estética premium de color verde ("Aplicar Asignación") y rojo ("Cancelar").
+  - Conectado el botón físico de **"Varita"** de 80x22px (idéntico al botón de "Reporte") en la barra inferior de la grilla para abrir este panel de forma consistente y visible.
+  - **Bugfix de Ámbito de Variable (Scope)**: Corregida la declaración forward de `ProposalPanel` al inicio de `UI/Grid.lua` para resolver el error donde el script `OnClick` del botón hacía referencia a una variable local no declarada aún (evaluando a `nil` y no haciendo nada).
+  - **Bugfix de Visibilidad y Textura**: Reemplazado el mini-botón de textura (que se ocultaba por debajo del Backdrop del Grid o no cargaba el icono) por un botón plano de texto rectangular `"Varita"` con mayor `FrameLevel` y anclaje inicial de `delegateContainer` a `x=345`.
+  - **Bugfix de Solapamiento y Alineación en Barra Inferior**: Ensanchada la ventana principal del Grid a `600px` y rediseñada la barra inferior eliminando el frame contenedor intermedio de delegado (`delegateContainer`). Anclados directamente `delegateLbl` y `delegateEdit` a `Grid` con coordenadas verticales exactas (`delegateLbl` a Y=13 y `delegateEdit` a Y=10) logrando que todos los componentes (Checkbox en Y=7 con offset de texto de +1, botones en Y=9, co-asignador en Y=10 y auto-cast en Y=4) compartan de forma matemática el mismo centro vertical en `Y=20` sin solaparse en absoluto.
+  - **Bugfix Crítico de Permisos (HasEditPermissions)**: Definida la función local `HasEditPermissions` en `UI/Grid.lua` para resolver el fallo de Lua `attempt to call global 'HasEditPermissions' (a nil value)` al hacer clic derecho sobre los nombres de los jugadores en la grilla principal para cambiar sus especialidades.
+- **Edición Manual Post-Propuesta**:
+  - Al presionar aplicar, la asignación pasa a ser editable de forma normal, permitiendo al usuario cambiar o borrar celdas sin ninguna restricción.
+
+## [03/07/2026] v1.6.2-prep - Especificación Técnica, Permisos y Rediseño de UI (Wow TBC Anniversary)
+
+- **Actualización del Plan de Optimización**:
+  - Enriquecido el [plan_de_optimizacion_inteligente.md](file:///d:/BLIZZARD/World/of/Warcraft/_anniversary_/Interface/AddOns/RaidBuffet/plan_de_optimizacion_inteligente.md) con información de talentos de Druida/Sacerdote y detección de 3 capas.
+- **Seguridad y Permisos P2P (Asistentes de Raid)**:
+  - Corregida la brecha de permisos de red: ahora, si el Líder no tiene el addon, todos los **Asistentes de la Raid (Raid Officers)** tienen permisos de edición automáticos.
+- **Rediseño de UI de Asignación Individual (SubFrame)**:
+  - Modificada la visibilidad del `SubFrame` para que sea **persistente por defecto** (Drawer acoplado y solidario con la grilla principal).
+  - Implementada una **barra superior con iconos redondos nativos de las 9 clases** en el `SubFrame`.
+  - **Alerta de Peligro Crítico de Salvación en Tanques (Diseño e Interfaz)**:
+    - **Algoritmo de Detección**: Diseñada e implementada la función `Scanner:HasSalvationTankHazard(casterName, targetClass)` que verifica si un paladín tiene asignada *Salvación Superior* (`25895`) a una clase que tiene tanques activos sin una bendición individual (ej: Reyes/Santuario) que la sobreescriba.
+    - **Grilla Principal**: Si se detecta peligro de Salvación en tanque en una clase, la celda correspondiente del paladín se pinta con un **borde rojo brillante de advertencia** (`1.0, 0.1, 0.1`) y un fondo rojizo (`0.35, 0.05, 0.05`), agregando una alerta roja muy detallada al tooltip.
+    - **Asignación Individual (SubFrame)**: En la grilla individual, el botón del tanque en peligro se resalta con el mismo borde rojo y fondo rojizo, y el tooltip del botón de bendición muestra un cartel detallado de advertencia indicando la necesidad de anular el buff de clase.
+  - **Identificación Visual de Roles y Función en Cabeceras (2 Líneas)**:
+    - Rediseñadas las cabeceras de columnas del `SubFrame` para que muestren la información en **dos líneas**:
+      - **Línea 1**: El rol de combate del jugador abreviado a 3 letras y coloreado (`TNK` en cian, `HEL` en verde y `DPS` en rojo).
+      - **Línea 2**: El nombre abreviado del jugador en el color de su clase.
+    - Creado el helper `GetUnitRole` para inferir roles de combate.
+    - Aumentado el alto de los botones de cabecera a `26px` y el `yOffset` de inicio de las celdas a `45px` para acomodar visualmente las dos líneas de texto de forma sumamente premium.
+  - **Corrección Crítica de Descuadre y Elementos Fantasma en SubFrame**:
+    - Añadida limpieza de anclajes nativos con `ClearAllPoints()` antes de cada `SetPoint` dinámico de cabeceras, filas y botones en `SubFrame:RefreshList()`.
+    - **Solución al bug del nombre del caster**: Se forzó `row.name:ClearAllPoints()` y `row.name:SetPoint("LEFT", ...)` / `row.name:SetPoint("CENTER", ...)` dinámicamente en cada iteración del bucle, impidiendo que el primer caster herede el anclaje `"CENTER"` del estado vacío de visualizaciones previas.
+    - **Solución al bug de iconos fantasma**: Ocultados de forma explícita todos los botones de la fila (`row.buttons`) cuando el addon entra en estado de error ("No hay jugadores..."), impidiendo que se queden dibujados de forma flotante e interfiriendo con el texto.
+    - Centrado horizontalmente el selector de clases superior (anclajes simétricos calculados en base a `440px`).
+    - Ajustado el espaciado vertical (`yOffset = 35` y etiquetas en `-65` / Scroll en `-85`) para dar aire visual y legibilidad.
+    - Sincronizada la alineación horizontal de precisión matemática: cabeceras con centro exacto en `118px` (ancho 36) y botones con centro exacto en `118px` (ancho 20 en offset de inicio `108px`).
+
 ## [02/07/2026] v1.6.1 - Alerta Visual Crítica: Parpadeo Estrobo y Brillo Rojo de Doble Capa
 
 - **Baliza Incandescente de Alerta Crítica**:

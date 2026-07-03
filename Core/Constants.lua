@@ -96,5 +96,27 @@ addonTable.Constants = {
         { code = "PARTY",         name = "Grupo (/party)" },
         { code = "RAID_WARNING",  name = "Alerta de Banda (/rw)" },
         { code = "LOCAL",         name = "Consola de Chat (Solo Tú)" },
+    },
+
+    -- Mapeo estático de Especializaciones a Talentos (para el selector manual)
+    SpecializationTalents = {
+        ["PALADIN"] = {
+            ["HOLY"]  = { improvedWisdom = 5, improvedMight = 0, improvedSantuario = false },
+            ["PROT"]  = { improvedWisdom = 0, improvedMight = 0, improvedSantuario = true },
+            ["RETRI"] = { improvedWisdom = 0, improvedMight = 5, improvedSantuario = false },
+            ["NONE"]  = { improvedWisdom = 0, improvedMight = 0, improvedSantuario = false }
+        },
+        ["DRUID"] = {
+            ["RESTO"]   = { improvedMark = 5 },
+            ["FERAL"]   = { improvedMark = 0 },
+            ["BALANCE"] = { improvedMark = 0 },
+            ["NONE"]    = { improvedMark = 0 }
+        },
+        ["PRIEST"] = {
+            ["DISC"]   = { improvedFort = 2, improvedSpirit = 2 },
+            ["HOLY"]   = { improvedFort = 2, improvedSpirit = 0 },
+            ["SHADOW"] = { improvedFort = 0, improvedSpirit = 0 },
+            ["NONE"]   = { improvedFort = 0, improvedSpirit = 0 }
+        }
     }
 }

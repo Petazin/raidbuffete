@@ -4,13 +4,126 @@ local Sync = addonTable.Sync
 local Constants = addonTable.Constants
 local Scanner = addonTable.Scanner
 
-local ReportPanel, SubFrame
+local ReportPanel, SubFrame, ProposalPanel
 
 local Grid = CreateFrame("Frame", "RaidBuffetGridFrame", UIParent, "BackdropTemplate")
 Grid:SetToplevel(true)
 addonTable.UI = Grid
 
-Grid:SetSize(520, 300)
+-- Frame para menús contextuales de especialidades (API nativa de Blizzard DropDown)
+local specMenuFrame = CreateFrame("Frame", "RaidBuffetSpecMenuFrame", UIParent, "UIDropDownMenuTemplate")
+
+local function HasEditPermissions()
+    if not IsInGroup() then return true end
+    
+    local myName = UnitName("player")
+    if addonTable.DelegateName and myName == addonTable.DelegateName then
+        return true
+    end
+    
+    if UnitIsGroupLeader("player") then
+        return true
+    end
+    
+    -- Verificar si somos asistentes de la raid
+    if IsInRaid() then
+        for i = 1, GetNumGroupMembers() do
+            local name, rank = GetRaidRosterInfo(i)
+            if name then
+                name = string.match(name, "([^%-]+)")
+                if name == myName then
+                    if rank == 1 or rank == 2 then
+                        return true
+                    end
+                    break
+                end
+            end
+        end
+    end
+    
+    return false
+end
+
+function Grid:OpenSpecMenu(anchorFrame, casterName, classType)
+    if not HasEditPermissions() then
+        print("|cffff0000[RaidBuffet]|r No tienes permisos de edición. Solo el Líder o el Co-Asignador Delegado pueden modificar asignaciones.")
+        return
+    end
+    
+    local menuTable = {}
+    
+    table.insert(menuTable, {
+        text = "Especialidad de " .. casterName,
+        isTitle = true,
+        notCheckable = true
+    })
+    
+    local specs = {}
+    if classType == "PALADIN" then
+        specs = {
+            { text = "Sagrado (Sabiduría/Reyes)", value = "HOLY" },
+            { text = "Protección (Santuario/Reyes)", value = "PROT" },
+            { text = "Reprensión (Poderío)", value = "RETRI" },
+            { text = "Ninguno (Estándar)", value = "NONE" }
+        }
+    elseif classType == "DRUID" then
+        specs = {
+            { text = "Restauración (Marca Mejorada)", value = "RESTO" },
+            { text = "Feral (Marca Estándar)", value = "FERAL" },
+            { text = "Equilibrio (Marca Estándar)", value = "BALANCE" },
+            { text = "Ninguno (Estándar)", value = "NONE" }
+        }
+    elseif classType == "PRIEST" then
+        specs = {
+            { text = "Disciplina (Espíritu/Entereza Mejorados)", value = "DISC" },
+            { text = "Sagrado (Entereza Mejorada)", value = "HOLY" },
+            { text = "Sombra (Entereza Estándar)", value = "SHADOW" },
+            { text = "Ninguno (Estándar)", value = "NONE" }
+        }
+    else
+        return -- No tiene especialidades mapeables de buffs
+    end
+    
+    local currentSpec = addonTable.TalentsCache[casterName] and addonTable.TalentsCache[casterName].spec or "NONE"
+    
+    for _, s in ipairs(specs) do
+        table.insert(menuTable, {
+            text = s.text,
+            checked = (currentSpec == s.value),
+            func = function()
+                -- 1. Cargar talentos por especialidad
+                local talents = {}
+                local defaultTalents = addonTable.Constants.SpecializationTalents[classType][s.value]
+                if defaultTalents then
+                    for k, v in pairs(defaultTalents) do talents[k] = v end
+                end
+                
+                addonTable.TalentsCache[casterName] = {
+                    class = classType,
+                    spec = s.value,
+                    talents = talents,
+                    source = "MANUAL"
+                }
+                
+                -- 2. Transmitir actualización de especialidad
+                Sync:SendSetTalents(casterName, s.value)
+                
+                -- 3. Actualizar la UI local
+                Grid:UpdateGrid()
+            end
+        })
+    end
+    
+    local function InitializeMenu(self, level)
+        for _, item in ipairs(menuTable) do
+            UIDropDownMenu_AddButton(item, level)
+        end
+    end
+    UIDropDownMenu_Initialize(specMenuFrame, InitializeMenu, "MENU")
+    ToggleDropDownMenu(1, nil, specMenuFrame, anchorFrame, 0, 0)
+end
+
+Grid:SetSize(600, 300)
 Grid:SetPoint("CENTER", UIParent, "CENTER")
 Grid:SetMovable(true)
 Grid:EnableMouse(true)
@@ -29,7 +142,7 @@ Grid:SetBackdropColor(0.06, 0.06, 0.06, 0.94)
 Grid:SetBackdropBorderColor(0.18, 0.18, 0.18, 1)
 
 Grid.header = CreateFrame("Frame", nil, Grid, "BackdropTemplate")
-Grid.header:SetSize(520, 24)
+Grid.header:SetSize(600, 24)
 Grid.header:SetPoint("TOPLEFT", Grid, "TOPLEFT", 0, 0)
 Grid.header:SetBackdrop({
     bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
@@ -112,8 +225,11 @@ Grid.helpBtn:SetScript("OnLeave", function(self)
 end)
 
 local showAllCheck = CreateFrame("CheckButton", "RaidBuffetShowAllCheck", Grid, "UICheckButtonTemplate")
-showAllCheck:SetPoint("BOTTOMLEFT", 10, 5)
-_G[showAllCheck:GetName() .. "Text"]:SetText("Mostrar todas las clases")
+showAllCheck:SetPoint("BOTTOMLEFT", 10, 7)
+local showAllText = _G[showAllCheck:GetName() .. "Text"]
+showAllText:SetText("Mostrar todas las clases")
+showAllText:ClearAllPoints()
+showAllText:SetPoint("LEFT", showAllCheck, "RIGHT", 4, 1)
 showAllCheck:SetScript("OnClick", function(self)
     if RaidBuffetDB then RaidBuffetDB.ShowAllClasses = self:GetChecked() end
     Grid:UpdateGrid()
@@ -153,12 +269,53 @@ reportBtn:SetScript("OnClick", function()
     end
 end)
 
+-- Botón de la Varita Mágica para propuesta de buffs inteligente
+local proposalBtn = CreateFrame("Button", "RaidBuffetProposalBtn", Grid, "BackdropTemplate")
+proposalBtn:SetSize(80, 22)
+proposalBtn:SetBackdrop({
+    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+    edgeFile = "Interface\\Buttons\\WHITE8X8",
+    tile = true, tileSize = 16, edgeSize = 1,
+})
+proposalBtn:SetBackdropColor(0.14, 0.14, 0.14, 1)
+proposalBtn:SetBackdropBorderColor(0.7, 0.5, 0.2, 0.5)
+proposalBtn:SetFrameLevel(Grid:GetFrameLevel() + 5)
+
+proposalBtn.text = proposalBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+proposalBtn.text:SetPoint("CENTER", 0, 0)
+proposalBtn.text:SetText("Varita")
+
+proposalBtn:SetScript("OnEnter", function(self)
+    self:SetBackdropColor(0.22, 0.22, 0.22, 1)
+    self:SetBackdropBorderColor(0.85, 0.7, 0.3, 1)
+    GameTooltip:SetOwner(self, "ANCHOR_TOP")
+    GameTooltip:ClearLines()
+    GameTooltip:AddLine("Varita Mágica (Propuesta de Asignación)", 1, 0.8, 0)
+    GameTooltip:AddLine("Calcula una asignación de buffs óptima para la raid.", 0.9, 0.9, 0.9)
+    GameTooltip:AddLine("Toma en cuenta las especialidades y buffs mejorados.", 0.9, 0.9, 0.9)
+    GameTooltip:Show()
+end)
+proposalBtn:SetScript("OnLeave", function(self)
+    self:SetBackdropColor(0.14, 0.14, 0.14, 1)
+    self:SetBackdropBorderColor(0.7, 0.5, 0.2, 0.5)
+    GameTooltip:Hide()
+end)
+proposalBtn:SetScript("OnClick", function()
+    if ProposalPanel then
+        if ProposalPanel:IsShown() then
+            ProposalPanel:Hide()
+        else
+            ProposalPanel:ShowPreview()
+        end
+    end
+end)
+
 -- ============================================================================
 -- BOTÓN MAESTRO DE AUTO-CAST Y SCROLL DE RATÓN
 -- ============================================================================
 -- Se crea el botón físico en la UI (puede estar oculto o visible)
 local castBtn = addonTable.ClickCast:CreateSecureButton(Grid, "RaidBuffetUIBtn", 32, nil, nil)
-castBtn:SetPoint("BOTTOMRIGHT", -10, 5)
+castBtn:SetPoint("BOTTOMRIGHT", -10, 4)
 
 local castLbl = Grid:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 castLbl:SetPoint("RIGHT", castBtn, "LEFT", -10, 0)
@@ -198,10 +355,11 @@ end)
 
 Grid.rows = {}
 
--- Comprueba si el jugador actual tiene permisos de edición (Líder de grupo o Delegado)
+-- Comprueba si el jugador actual tiene permisos de edición (Líder de grupo, Asistente de Raid o Delegado)
 local function HasEditPermissions()
     if not IsInGroup() then return true end
     if UnitIsGroupLeader("player") then return true end
+    if IsInRaid() and UnitIsRaidOfficer("player") then return true end
     if addonTable.DelegateName and addonTable.DelegateName == UnitName("player") then return true end
     return false
 end
@@ -220,6 +378,17 @@ local function OnCellEnter(self)
         displayName = "Grupo " .. gNum
     else
         displayName = L:GetClassName(self.targetID) or self.targetID
+    end
+    
+    -- Alerta Crítica si hay un tanque que va a recibir salvación de clase
+    if self.casterClass == "PALADIN" then
+        local isHazard, tankName = Scanner:HasSalvationTankHazard(self.casterName, self.targetID)
+        if isHazard then
+            GameTooltip:AddLine("|cffff0000¡ALERTA CRÍTICA DE TANQUE!|r", 1, 0, 0)
+            GameTooltip:AddLine(string.format("|cffffffff%s|r es Tanque y recibirá Salvación.", tankName), 1, 1, 1)
+            GameTooltip:AddLine("Asigna otra bendición individualmente\npara anular la bendición de clase.", 0.9, 0.9, 0)
+            GameTooltip:AddLine(" ")
+        end
     end
     
     local targetType = Constants.TargetTypes[self.casterClass]
@@ -295,14 +464,23 @@ local function OnCellEnter(self)
 end
 
 local function OnCellLeave(self)
-    local assignedSpell = nil
-    if addonTable.Assignments[self.casterClass] and addonTable.Assignments[self.casterClass][self.casterName] then
-        assignedSpell = addonTable.Assignments[self.casterClass][self.casterName][self.targetID]
+    local isHazard = false
+    if self.casterClass == "PALADIN" then
+        isHazard = Scanner:HasSalvationTankHazard(self.casterName, self.targetID)
     end
-    if assignedSpell then
-        self:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+    
+    if isHazard then
+        self:SetBackdropBorderColor(1.0, 0.1, 0.1, 1)
     else
-        self:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
+        local assignedSpell = nil
+        if addonTable.Assignments[self.casterClass] and addonTable.Assignments[self.casterClass][self.casterName] then
+            assignedSpell = addonTable.Assignments[self.casterClass][self.casterName][self.targetID]
+        end
+        if assignedSpell then
+            self:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+        else
+            self:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
+        end
     end
     GameTooltip:Hide()
 end
@@ -456,16 +634,11 @@ end
 -- ============================================================================
 -- ELEMENTOS DE LA CASILLA DE DELEGADO (CO-ASIGNADOR CON AUTOCOMPLETADO)
 -- ============================================================================
-local delegateContainer = CreateFrame("Frame", "RaidBuffetDelegateContainer", Grid)
-delegateContainer:SetSize(150, 24)
-
-local delegateLbl = delegateContainer:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-delegateLbl:SetPoint("LEFT", 0, 0)
+local delegateLbl = Grid:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 delegateLbl:SetText("Co-Asig:")
 
-local delegateEdit = CreateFrame("EditBox", "RaidBuffetDelegateEdit", delegateContainer, "InputBoxTemplate")
-delegateEdit:SetSize(75, 20)
-delegateEdit:SetPoint("LEFT", delegateLbl, "RIGHT", 5, 0)
+local delegateEdit = CreateFrame("EditBox", "RaidBuffetDelegateEdit", Grid, "InputBoxTemplate")
+delegateEdit:SetSize(65, 20)
 delegateEdit:SetAutoFocus(false)
 delegateEdit:SetMaxLetters(12)
 
@@ -777,6 +950,11 @@ function Grid:UpdateGrid()
                         row.name:SetWidth(80)
                         row.name:SetJustifyH("LEFT")
                         
+                        -- Botón invisible interactivo sobre el nombre
+                        row.nameBtn = CreateFrame("Button", nil, row)
+                        row.nameBtn:SetAllPoints(row.name)
+                        row.nameBtn:RegisterForClicks("RightButtonUp")
+                        
                         row.cells = {}
                         for i = 1, 9 do
                             local cell = CreateFrame("Button", nil, row, "BackdropTemplate")
@@ -814,7 +992,138 @@ function Grid:UpdateGrid()
                     if isMTMap[casterName] then
                         displayName = "[T]" .. displayName -- Prefijo de tanque principal
                     end
-                    row.name:SetText("|c" .. colorHex .. displayName .. "|r")
+                    
+                    -- Vincular el menú contextual de talentos al clic derecho del nombre
+                    row.nameBtn:SetScript("OnClick", function(self, button)
+                        if button == "RightButton" then
+                            Grid:OpenSpecMenu(self, casterName, classType)
+                        end
+                    end)
+                    row.nameBtn:SetScript("OnEnter", function(self)
+                        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+                        GameTooltip:ClearLines()
+                        GameTooltip:AddLine(casterName, 1, 1, 1)
+                        if HasEditPermissions() then
+                            GameTooltip:AddLine("|cff00ffffClic Derecho|r: Cambiar Especialidad de Buffs", 0.2, 1, 0.2)
+                        end
+                        GameTooltip:Show()
+                    end)
+                    row.nameBtn:SetScript("OnLeave", function(self)
+                        GameTooltip:Hide()
+                    end)
+                    
+                    -- Calcular sufijo de la especialidad manual
+                    local specSuffix = ""
+                    local talentsSuffix = ""
+                    -- Detección pasiva por buffs activos
+                    local cached = addonTable.TalentsCache and addonTable.TalentsCache[casterName]
+                    if not cached or not cached.spec or cached.spec == "NONE" then
+                        local unit = nil
+                        if casterName == UnitName("player") then
+                            unit = "player"
+                        elseif IsInRaid() then
+                            for j = 1, GetNumGroupMembers() do
+                                if UnitName("raid" .. j) == casterName then
+                                    unit = "raid" .. j
+                                    break
+                                end
+                            end
+                        elseif IsInGroup() then
+                            for j = 1, GetNumSubgroupMembers() do
+                                if UnitName("party" .. j) == casterName then
+                                    unit = "party" .. j
+                                    break
+                                end
+                            end
+                        end
+                        
+                        if unit then
+                            local detectedSpec = nil
+                            for bIdx = 1, 40 do
+                                local _, _, _, _, _, _, _, _, _, spellID = UnitBuff(unit, bIdx)
+                                if not spellID then break end
+                                
+                                if spellID == 33891 then -- Forma de Árbol de Vida (Druida Resto)
+                                    detectedSpec = "RESTO"
+                                elseif spellID == 24858 then -- Forma de Lechúcico Lunar (Druida Equilibrio)
+                                    detectedSpec = "BALANCE"
+                                elseif spellID == 15473 then -- Forma de Sombra (Priest Shadow)
+                                    detectedSpec = "SHADOW"
+                                elseif spellID == 25780 then -- Furia Recta (Paladín Prot)
+                                    detectedSpec = "PROT"
+                                end
+                            end
+                            
+                            if detectedSpec then
+                                local talents = {}
+                                local defaultTalents = addonTable.Constants.SpecializationTalents[classType] and addonTable.Constants.SpecializationTalents[classType][detectedSpec]
+                                if defaultTalents then
+                                    for k, v in pairs(defaultTalents) do talents[k] = v end
+                                end
+                                addonTable.TalentsCache[casterName] = {
+                                    class = classType,
+                                    spec = detectedSpec,
+                                    talents = talents,
+                                    source = "BUFF_DETECT"
+                                }
+                                cached = addonTable.TalentsCache[casterName]
+                            end
+                        end
+                    end
+                    
+                    if cached then
+                        if cached.spec and cached.spec ~= "NONE" then
+                            if classType == "PALADIN" then
+                                if cached.spec == "HOLY" then specSuffix = " |cffffdd57(Sag)|r"
+                                elseif cached.spec == "PROT" then specSuffix = " |cff00ffff(Prot)|r"
+                                elseif cached.spec == "RETRI" then specSuffix = " |cffff5757(Rep)|r"
+                                end
+                            elseif classType == "DRUID" then
+                                if cached.spec == "RESTO" then specSuffix = " |cff80ff80(Rest)|r"
+                                elseif cached.spec == "FERAL" then specSuffix = " |cffddaa77(Fer)|r"
+                                elseif cached.spec == "BALANCE" then specSuffix = " |cff99aaff(Equi)|r"
+                                end
+                            elseif classType == "PRIEST" then
+                                if cached.spec == "DISC" then specSuffix = " |cffddddff(Dis)|r"
+                                elseif cached.spec == "HOLY" then specSuffix = " |cffffdd57(Sag)|r"
+                                elseif cached.spec == "SHADOW" then specSuffix = " |cffa335ee(Som)|r"
+                                end
+                            end
+                        end
+                        
+                        -- Generar sufijo de talentos mejorados
+                        if cached.talents then
+                            local tList = {}
+                            if classType == "PALADIN" then
+                                if cached.talents.improvedWisdom and cached.talents.improvedWisdom > 0 then
+                                    table.insert(tList, "Sab")
+                                end
+                                if cached.talents.improvedMight and cached.talents.improvedMight > 0 then
+                                    table.insert(tList, "Pod")
+                                end
+                                if cached.talents.improvedSantuario then
+                                    table.insert(tList, "San")
+                                end
+                            elseif classType == "DRUID" then
+                                if cached.talents.improvedMark and cached.talents.improvedMark > 0 then
+                                    table.insert(tList, "Mar")
+                                end
+                            elseif classType == "PRIEST" then
+                                if cached.talents.improvedFort and cached.talents.improvedFort > 0 then
+                                    table.insert(tList, "Ent")
+                                end
+                                if cached.talents.improvedSpirit and cached.talents.improvedSpirit > 0 then
+                                    table.insert(tList, "Esp")
+                                end
+                            end
+                            
+                            if #tList > 0 then
+                                talentsSuffix = " |cff00ff00[" .. table.concat(tList, ",") .. "]|r"
+                            end
+                        end
+                    end
+                    
+                    row.name:SetText("|c" .. colorHex .. displayName .. "|r" .. specSuffix .. talentsSuffix)
                     
                     for i = 1, 9 do
                         local cell = row.cells[i]
@@ -831,16 +1140,31 @@ function Grid:UpdateGrid()
                                 assignedSpell = addonTable.Assignments[classType][casterName][targetID]
                             end
                             
+                            local isHazard = false
+                            if classType == "PALADIN" then
+                                isHazard = Scanner:HasSalvationTankHazard(casterName, targetID)
+                            end
+                            
                             if assignedSpell then
                                 local _, icon = L:GetSpellInfo(assignedSpell)
                                 cell.icon:SetTexture(icon)
                                 cell.icon:SetAlpha(1.0)
-                                cell:SetBackdropColor(0.06, 0.06, 0.06, 0.9)
-                                cell:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+                                if isHazard then
+                                    cell:SetBackdropColor(0.35, 0.05, 0.05, 0.95)
+                                    cell:SetBackdropBorderColor(1.0, 0.1, 0.1, 1) -- Borde rojo brillante de peligro
+                                else
+                                    cell:SetBackdropColor(0.06, 0.06, 0.06, 0.9)
+                                    cell:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+                                end
                             else
                                 cell.icon:SetTexture(nil)
-                                cell:SetBackdropColor(0.12, 0.12, 0.12, 0.8)
-                                cell:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
+                                if isHazard then
+                                    cell:SetBackdropColor(0.35, 0.05, 0.05, 0.95)
+                                    cell:SetBackdropBorderColor(1.0, 0.1, 0.1, 1)
+                                else
+                                    cell:SetBackdropColor(0.12, 0.12, 0.12, 0.8)
+                                    cell:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
+                                end
                             end
                             cell:Show()
                         else
@@ -857,12 +1181,19 @@ function Grid:UpdateGrid()
         Grid:SetHeight(math.abs(yOffset) + 45)
         
         -- 4. Actualizar estado y visibilidad de los controles inferiores con posiciones fijas para evitar solapamientos
-        showAllCheck:SetPoint("BOTTOMLEFT", 10, 6)
-        reportBtn:SetPoint("BOTTOMLEFT", 175, 8)
+        showAllCheck:SetPoint("BOTTOMLEFT", 10, 7)
+        reportBtn:SetPoint("BOTTOMLEFT", 160, 9)
+        
+        -- Botón de propuesta (Varita Mágica)
+        proposalBtn:SetPoint("BOTTOMLEFT", 245, 9)
+        proposalBtn:Show()
         
         -- Anclar la casilla de delegado
-        delegateContainer:SetPoint("BOTTOMLEFT", 260, 8)
-        delegateContainer:Show()
+        delegateLbl:SetPoint("BOTTOMLEFT", 330, 13)
+        delegateLbl:Show()
+        
+        delegateEdit:SetPoint("BOTTOMLEFT", 380, 10)
+        delegateEdit:Show()
         
         if UnitIsGroupLeader("player") or not IsInGroup() then
             delegateEdit:SetEnabled(true)
@@ -945,8 +1276,78 @@ SubFrame.closeBtn:SetScript("OnLeave", function(self)
     self:SetBackdropColor(0.2, 0.1, 0.1, 1)
 end)
 
+-- ============================================================================
+-- BARRA SUPERIOR DE SELECTOR DE CLASE (UI PREMIUM)
+-- ============================================================================
+local CLASS_ICON_COORDS = {
+    ["WARRIOR"] = {0, 0.25, 0, 0.25},
+    ["MAGE"]    = {0.25, 0.5, 0, 0.25},
+    ["ROGUE"]   = {0.5, 0.75, 0, 0.25},
+    ["DRUID"]   = {0.75, 1, 0, 0.25},
+    ["HUNTER"]  = {0, 0.25, 0.25, 0.5},
+    ["SHAMAN"]  = {0.25, 0.5, 0.25, 0.5},
+    ["PRIEST"]  = {0.5, 0.75, 0.25, 0.5},
+    ["WARLOCK"] = {0.75, 1, 0.25, 0.5},
+    ["PALADIN"] = {0, 0.25, 0.5, 0.75}
+}
+
+local classList = {
+    "WARRIOR", "ROGUE", "HUNTER", "MAGE", "WARLOCK", "PRIEST", "DRUID", "SHAMAN", "PALADIN"
+}
+
+SubFrame.classButtons = {}
+for i, className in ipairs(classList) do
+    local btn = CreateFrame("Button", nil, SubFrame, "BackdropTemplate")
+    btn:SetSize(22, 22)
+    btn:SetPoint("TOPLEFT", SubFrame, "TOPLEFT", 73 + (i-1)*34, -30) -- Centrado horizontal en 440px
+    
+    -- Icono de clase de Blizzard redondo nativo
+    local icon = btn:CreateTexture(nil, "ARTWORK")
+    icon:SetTexture("Interface\\TargetingFrame\\UI-Classes-Circles")
+    icon:SetTexCoord(unpack(CLASS_ICON_COORDS[className]))
+    icon:SetAllPoints(btn)
+    btn.icon = icon
+    
+    -- Borde brillante dorado para el botón seleccionado
+    local selectGlow = btn:CreateTexture(nil, "OVERLAY")
+    selectGlow:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
+    selectGlow:SetBlendMode("ADD")
+    selectGlow:SetAllPoints(btn)
+    selectGlow:Hide()
+    btn.selectGlow = selectGlow
+    
+    btn:SetScript("OnClick", function()
+        SubFrame.targetClass = className
+        SubFrame.title:SetText("Asignación Individual: " .. (L:GetClassName(className) or className))
+        SubFrame:RefreshList()
+    end)
+    
+    btn:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:ClearLines()
+        local color = GetClassColorObj(className)
+        GameTooltip:AddLine(L:GetClassName(className) or className, color.r, color.g, color.b)
+        GameTooltip:Show()
+    end)
+    btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    
+    SubFrame.classButtons[className] = btn
+end
+
+function SubFrame:UpdateSelectorGlow()
+    for cName, btn in pairs(SubFrame.classButtons) do
+        if SubFrame.targetClass == cName then
+            btn.selectGlow:Show()
+            btn.icon:SetAlpha(1.0)
+        else
+            btn.selectGlow:Hide()
+            btn.icon:SetAlpha(0.4)
+        end
+    end
+end
+
 local SubScrollFrame = CreateFrame("ScrollFrame", "RaidBuffetSubAssignScrollFrame", SubFrame, "UIPanelScrollFrameTemplate")
-SubScrollFrame:SetPoint("TOPLEFT", 10, -50)
+SubScrollFrame:SetPoint("TOPLEFT", 10, -85)  -- Ajustado para dar espacio a la barra de clase
 SubScrollFrame:SetPoint("BOTTOMRIGHT", -30, 10)
 
 if _G["RaidBuffetSubAssignScrollFrameScrollBar"] then
@@ -956,12 +1357,12 @@ if _G["RaidBuffetSubAssignScrollFrameScrollBar"] then
 end
 
 SubFrame.casterLabel = SubFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-SubFrame.casterLabel:SetPoint("TOPLEFT", 15, -32)
+SubFrame.casterLabel:SetPoint("TOPLEFT", 15, -65)  -- Ajustado para las etiquetas
 SubFrame.casterLabel:SetText("Caster (Bufa)")
 SubFrame.casterLabel:SetTextColor(0.6, 0.6, 0.6)
 
 SubFrame.targetLabel = SubFrame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-SubFrame.targetLabel:SetPoint("TOPLEFT", 115, -32)
+SubFrame.targetLabel:SetPoint("TOPLEFT", 115, -65) -- Ajustado para las etiquetas
 SubFrame.targetLabel:SetText("Objetivos (Reciben)")
 SubFrame.targetLabel:SetTextColor(0.6, 0.6, 0.6)
 
@@ -1150,7 +1551,45 @@ local function OpenAssignMenu(anchorBtn, casterName, targetName, targetClass)
     contextMenu:Show()
 end
 
+local function GetUnitRole(unit, name, class)
+    if Scanner:IsMainTank(unit) then
+        return "TANK"
+    end
+    
+    if UnitGroupRolesAssigned then
+        local role = UnitGroupRolesAssigned(unit)
+        if role and role ~= "NONE" then
+            return role
+        end
+    end
+    
+    -- Inferir a partir de la caché de especialidad manual
+    local specCache = addonTable.TalentsCache and addonTable.TalentsCache[name]
+    if specCache and specCache.spec then
+        local spec = specCache.spec
+        if spec == "Sagrado" or spec == "Restauración" or spec == "Disciplina" then
+            return "HEALER"
+        elseif spec == "Protección" then
+            return "TANK"
+        elseif spec == "Feral" then
+            return "TANK"
+        end
+    end
+    
+    -- Inferir por clases puras
+    if class == "MAGE" or class == "ROGUE" or class == "HUNTER" or class == "WARLOCK" then
+        return "DAMAGER"
+    elseif class == "PRIEST" then
+        return "HEALER"
+    end
+    
+    return "DAMAGER"
+end
+
 function SubFrame:RefreshList()
+    -- Actualizar el brillo dorado del selector superior de clase
+    SubFrame:UpdateSelectorGlow()
+
     -- Ocultar filas y cabeceras anteriores
     for _, row in ipairs(SubFrame.rows) do row:Hide() end
     for _, h in ipairs(SubFrame.headers) do h:Hide() end
@@ -1234,11 +1673,21 @@ function SubFrame:RefreshList()
             row = CreateFrame("Frame", nil, SubScrollChild)
             row:SetSize(380, 24)
             row.name = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-            row.name:SetPoint("CENTER", row, "CENTER", 0, 0)
             SubFrame.rows[1] = row
         end
+        row.name:ClearAllPoints()
+        row.name:SetPoint("CENTER", row, "CENTER", 0, 0)
         row.name:SetText("|cffaaaaaaNo hay jugadores o paladines activos|r")
         row.name:Show()
+        
+        -- Ocultar los botones de bendición de esta fila si ya existían para evitar iconos fantasma
+        if row.buttons then
+            for _, btn in ipairs(row.buttons) do
+                btn:Hide()
+            end
+        end
+        
+        row:ClearAllPoints()
         row:SetPoint("TOPLEFT", SubScrollChild, "TOPLEFT", 0, -5)
         row:Show()
         SubScrollChild:SetHeight(30)
@@ -1251,18 +1700,31 @@ function SubFrame:RefreshList()
             local h = SubFrame.headers[i]
             if not h then
                 h = CreateFrame("Button", nil, SubScrollChild)
-                h:SetSize(36, 16)
+                h:SetSize(36, 26) -- Mayor tamaño para dos líneas de texto
                 h.text = h:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
                 h.text:SetPoint("CENTER", 0, 0)
                 SubFrame.headers[i] = h
             end
-            h:SetPoint("TOPLEFT", SubScrollChild, "TOPLEFT", 100 + (i-1)*40, -5)
-            h.text:SetText(string.sub(pData.name, 1, 4))
+            h:ClearAllPoints()
+            h:SetPoint("TOPLEFT", SubScrollChild, "TOPLEFT", 100 + (i-1)*40, -10)
+            
+            -- Detectar rol e icono visual
+            local role = GetUnitRole(pData.unit, pData.name, pData.class)
+            local roleText = "|cffff5555DPS|r"
+            if role == "TANK" then
+                roleText = "|cff00ffffTNK|r"
+            elseif role == "HEALER" then
+                roleText = "|cff00ff00HEL|r"
+            end
+            
+            local displayName = roleText .. "\n" .. string.sub(pData.name, 1, 4)
+            h.text:SetText(displayName)
             
             local color = GetClassColorObj(pData.class)
+            -- Nota: la segunda línea heredará el color de la clase gracias a SetTextColor si no está formateada
             h.text:SetTextColor(color.r, color.g, color.b)
             
-            -- Tooltip con nombre completo
+            -- Tooltip con nombre completo y rol
             local isMT = Scanner:IsMainTank(pData.unit)
             h:SetScript("OnEnter", function(self)
                 GameTooltip:SetOwner(self, "ANCHOR_TOP")
@@ -1271,7 +1733,12 @@ function SubFrame:RefreshList()
                 if isMT then
                     titleName = "|cff00ffff[T]|r " .. titleName
                 end
-                GameTooltip:AddDoubleLine(titleName, isMT and "|cff00ffffTanque Principal|r" or "", color.r, color.g, color.b, 0, 1, 1)
+                
+                local roleDesc = "Daño (DPS)"
+                if role == "TANK" then roleDesc = "Tanque Principal"
+                elseif role == "HEALER" then roleDesc = "Sanador (Healer)" end
+                
+                GameTooltip:AddDoubleLine(titleName, "|cffffd100" .. roleDesc .. "|r", color.r, color.g, color.b, 1, 0.82, 0)
                 GameTooltip:Show()
             end)
             h:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -1280,7 +1747,7 @@ function SubFrame:RefreshList()
     end
     
     -- 4. Dibujar filas de paladines (Casters)
-    local yOffset = 25
+    local yOffset = 45 -- Mayor separación vertical para cabeceras de 2 líneas
     for rowIndex, palName in ipairs(paladins) do
         local row = SubFrame.rows[rowIndex]
         if not row then
@@ -1288,12 +1755,15 @@ function SubFrame:RefreshList()
             row:SetSize(380, 24)
             
             row.name = row:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
-            row.name:SetPoint("LEFT", 5, 0)
             row.name:SetWidth(90)
             row.name:SetJustifyH("LEFT")
             
             SubFrame.rows[rowIndex] = row
         end
+        row.name:ClearAllPoints()
+        row.name:SetPoint("LEFT", row, "LEFT", 5, 0)
+        
+        row:ClearAllPoints()
         row:SetPoint("TOPLEFT", SubScrollChild, "TOPLEFT", 0, -yOffset)
         
         if not row.buttons then
@@ -1305,7 +1775,6 @@ function SubFrame:RefreshList()
             if not btn then
                 btn = CreateFrame("Button", nil, row, "BackdropTemplate")
                 btn:SetSize(20, 20)
-                btn:SetPoint("LEFT", row.name, "RIGHT", (pIdx-1)*40 + 8, 0)
                 
                 btn:SetBackdrop({
                     bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
@@ -1321,6 +1790,8 @@ function SubFrame:RefreshList()
                 
                 row.buttons[pIdx] = btn
             end
+            btn:ClearAllPoints()
+            btn:SetPoint("LEFT", row, "LEFT", 108 + (pIdx-1)*40, 0) -- Alineado al píxel centrado bajo las cabeceras
         end
         
         row.name:SetText(palName)
@@ -1343,17 +1814,29 @@ function SubFrame:RefreshList()
                     end
                 end
                 
+                local isHazard = (assignedSpell == 25895 and Scanner:IsMainTank(pData.unit))
+                
                 if assignedSpell and assignedSpell ~= "CLEAR" and assignedSpell ~= 0 then
                     local _, icon = L:GetSpellInfo(assignedSpell)
                     btn.icon:SetTexture(icon)
                     if isIndividual then
                         btn.icon:SetAlpha(1.0)
-                        btn:SetBackdropColor(0.06, 0.06, 0.06, 0.9)
-                        btn:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+                        if isHazard then
+                            btn:SetBackdropColor(0.35, 0.05, 0.05, 0.95)
+                            btn:SetBackdropBorderColor(1.0, 0.1, 0.1, 1)
+                        else
+                            btn:SetBackdropColor(0.06, 0.06, 0.06, 0.9)
+                            btn:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+                        end
                     else
                         btn.icon:SetAlpha(0.35)
-                        btn:SetBackdropColor(0.12, 0.12, 0.12, 0.8)
-                        btn:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
+                        if isHazard then
+                            btn:SetBackdropColor(0.35, 0.05, 0.05, 0.95)
+                            btn:SetBackdropBorderColor(1.0, 0.1, 0.1, 1)
+                        else
+                            btn:SetBackdropColor(0.12, 0.12, 0.12, 0.8)
+                            btn:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
+                        end
                     end
                 else
                     btn.icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
@@ -1445,17 +1928,30 @@ function SubFrame:RefreshList()
                 
                 btn:SetScript("OnEnter", function(self)
                     self:SetBackdropBorderColor(0.85, 0.7, 0.3, 1) -- Hover Glow dorado suave
+                    if isHazard then
+                        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+                        GameTooltip:ClearLines()
+                        GameTooltip:AddLine("|cffff0000¡PELIGRO DE SALVACIÓN!|r", 1, 0, 0)
+                        GameTooltip:AddLine(string.format("Este jugador es Tanque y recibirá Salvación (%s).", isIndividual and "Individual" or "De clase"), 1, 1, 1)
+                        GameTooltip:AddLine("Cambia a otra bendición o selecciona 'Ninguno'\npara anular el buff de clase.", 0.9, 0.9, 0)
+                        GameTooltip:Show()
+                    end
                 end)
                 
                 btn:SetScript("OnLeave", function(self)
-                    local assignedSpell = nil
-                    if addonTable.Assignments["PALADIN"] and addonTable.Assignments["PALADIN"][palName] then
-                        assignedSpell = addonTable.Assignments["PALADIN"][palName][pData.name]
-                    end
-                    if assignedSpell then
-                        self:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+                    GameTooltip:Hide()
+                    if isHazard then
+                        self:SetBackdropBorderColor(1.0, 0.1, 0.1, 1)
                     else
-                        self:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
+                        local assignedSpell = nil
+                        if addonTable.Assignments["PALADIN"] and addonTable.Assignments["PALADIN"][palName] then
+                            assignedSpell = addonTable.Assignments["PALADIN"][palName][pData.name]
+                        end
+                        if assignedSpell then
+                            self:SetBackdropBorderColor(0.4, 0.4, 0.4, 1)
+                        else
+                            self:SetBackdropBorderColor(0.2, 0.2, 0.2, 1)
+                        end
                     end
                 end)
                 
@@ -1476,20 +1972,34 @@ function Grid:OpenSubAssignFrame(anchorFrame, classType, targetClass)
         return
     end
     
-    if SubFrame:IsShown() and SubFrame.targetClass == targetClass then
-        SubFrame:Hide()
-    else
-        SubFrame.targetClass = targetClass
-        SubFrame.title:SetText("Asignación Individual: " .. (L:GetClassName(targetClass) or targetClass))
-        SubFrame:ClearAllPoints()
-        SubFrame:SetPoint("TOPLEFT", Grid, "TOPRIGHT", 2, 0)
-        SubFrame:RefreshList()
-        SubFrame:Show()
-    end
+    SubFrame.targetClass = targetClass
+    SubFrame.title:SetText("Asignación Individual: " .. (L:GetClassName(targetClass) or targetClass))
+    SubFrame:ClearAllPoints()
+    SubFrame:SetPoint("TOPLEFT", Grid, "TOPRIGHT", 2, 0)
+    SubFrame:RefreshList()
+    SubFrame:Show()
 end
 
 showAllCheck:SetScript("OnShow", function(self) if RaidBuffetDB then self:SetChecked(RaidBuffetDB.ShowAllClasses) end end)
-Grid:SetScript("OnShow", function(self) self:UpdateGrid() end)
+
+Grid:SetScript("OnShow", function(self)
+    self:UpdateGrid()
+    if not SubFrame.targetClass then
+        SubFrame.targetClass = "WARRIOR"
+    end
+    SubFrame.title:SetText("Asignación Individual: " .. (L:GetClassName(SubFrame.targetClass) or SubFrame.targetClass))
+    SubFrame:ClearAllPoints()
+    SubFrame:SetPoint("TOPLEFT", Grid, "TOPRIGHT", 2, 0)
+    SubFrame:RefreshList()
+    SubFrame:Show()
+end)
+
+Grid:SetScript("OnHide", function(self)
+    SubFrame:Hide()
+    if ReportPanel then
+        ReportPanel:Hide()
+    end
+end)
 
 -- ============================================================================
 -- PANEL DE REPORTES DE FALTANTES (INTEGRADO - DRAWER IZQUIERDO)
@@ -1801,6 +2311,177 @@ end)
 
 ReportPanel:SetScript("OnShow", function(self)
     self:UpdateReport()
+end)
+
+-- ============================================================================
+-- PANEL DE PROPUESTA DE ASIGNACIÓN (DRAWER DE VISTA PREVIA)
+-- ============================================================================
+ProposalPanel = CreateFrame("Frame", "RaidBuffetProposalPanel", Grid, "BackdropTemplate")
+ProposalPanel:SetSize(320, 300)
+ProposalPanel:EnableMouse(true)
+ProposalPanel:Hide()
+
+ProposalPanel:SetBackdrop({
+    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+    edgeFile = "Interface\\Buttons\\WHITE8X8",
+    tile = true, tileSize = 16, edgeSize = 1,
+    insets = { left = 0, right = 0, top = 0, bottom = 0 }
+})
+ProposalPanel:SetBackdropColor(0.06, 0.06, 0.06, 0.94)
+ProposalPanel:SetBackdropBorderColor(0.18, 0.18, 0.18, 1)
+
+ProposalPanel.header = CreateFrame("Frame", nil, ProposalPanel, "BackdropTemplate")
+ProposalPanel.header:SetSize(320, 24)
+ProposalPanel.header:SetPoint("TOPLEFT", ProposalPanel, "TOPLEFT", 0, 0)
+ProposalPanel.header:SetBackdrop({
+    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+    edgeFile = "Interface\\Buttons\\WHITE8X8",
+    tile = true, tileSize = 16, edgeSize = 1,
+    insets = { left = 0, right = 0, top = 0, bottom = 0 }
+})
+ProposalPanel.header:SetBackdropColor(0.12, 0.12, 0.12, 1)
+ProposalPanel.header:SetBackdropBorderColor(0.18, 0.18, 0.18, 1)
+
+ProposalPanel.title = ProposalPanel.header:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+ProposalPanel.title:SetPoint("LEFT", 10, 0)
+ProposalPanel.title:SetText("Propuesta de Buffs")
+ProposalPanel.title:SetTextColor(0.8, 0.6, 0.2)
+
+ProposalPanel.closeBtn = CreateFrame("Button", nil, ProposalPanel.header, "BackdropTemplate")
+ProposalPanel.closeBtn:SetSize(16, 16)
+ProposalPanel.closeBtn:SetPoint("RIGHT", -6, 0)
+ProposalPanel.closeBtn:SetBackdrop({
+    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+    edgeFile = "Interface\\Buttons\\WHITE8X8",
+    tile = true, tileSize = 16, edgeSize = 1,
+})
+ProposalPanel.closeBtn:SetBackdropColor(0.2, 0.1, 0.1, 1)
+ProposalPanel.closeBtn:SetBackdropBorderColor(0.3, 0.15, 0.15, 1)
+ProposalPanel.closeBtn.text = ProposalPanel.closeBtn:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+ProposalPanel.closeBtn.text:SetPoint("CENTER", 0, 0)
+ProposalPanel.closeBtn.text:SetText("X")
+ProposalPanel.closeBtn.text:SetTextColor(0.8, 0.3, 0.3)
+ProposalPanel.closeBtn:SetScript("OnClick", function() ProposalPanel:Hide() end)
+
+-- Scroll Frame para la lista de propuestas
+local pScroll = CreateFrame("ScrollFrame", nil, ProposalPanel, "UIPanelScrollFrameTemplate")
+pScroll:SetPoint("TOPLEFT", 10, -34)
+pScroll:SetPoint("BOTTOMRIGHT", -26, 40)
+
+local pScrollChild = CreateFrame("Frame")
+pScrollChild:SetSize(280, 200)
+pScroll:SetScrollChild(pScrollChild)
+
+ProposalPanel.lines = {}
+
+-- Función dinámica de anclaje de paneles acoplados
+local function AnchorPanels()
+    if SubFrame and SubFrame:IsShown() then
+        ProposalPanel:ClearAllPoints()
+        ProposalPanel:SetPoint("TOPLEFT", SubFrame, "TOPRIGHT", 2, 0)
+    else
+        ProposalPanel:ClearAllPoints()
+        ProposalPanel:SetPoint("TOPLEFT", Grid, "TOPRIGHT", 2, 0)
+    end
+end
+
+-- Hookear cambios de visibilidad en SubFrame para auto-anclar
+SubFrame:HookScript("OnShow", AnchorPanels)
+SubFrame:HookScript("OnHide", AnchorPanels)
+
+local currentProposal = nil
+
+function ProposalPanel:ShowPreview()
+    if not HasEditPermissions() then
+        print("|cffff0000[RaidBuffet]|r No tienes permisos de edición para generar propuestas.")
+        return
+    end
+
+    currentProposal = addonTable.Proposal:GenerateProposal()
+    
+    -- Limpiar textos antiguos
+    for _, fontStr in ipairs(ProposalPanel.lines) do
+        fontStr:Hide()
+    end
+    ProposalPanel.lines = {}
+    
+    local yOffset = -5
+    if #currentProposal.summary == 0 then
+        local fs = pScrollChild:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        fs:SetPoint("TOPLEFT", pScrollChild, "TOPLEFT", 5, yOffset)
+        fs:SetText("|cffaaaaaaNo hay paladines ni casters activos en el grupo.|r")
+        fs:Show()
+        table.insert(ProposalPanel.lines, fs)
+    else
+        for _, text in ipairs(currentProposal.summary) do
+            local fs = pScrollChild:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+            fs:SetPoint("TOPLEFT", pScrollChild, "TOPLEFT", 5, yOffset)
+            fs:SetWidth(270)
+            fs:SetJustifyH("LEFT")
+            fs:SetText(text)
+            fs:Show()
+            table.insert(ProposalPanel.lines, fs)
+            yOffset = yOffset - 18
+        end
+    end
+    pScrollChild:SetHeight(math.abs(yOffset) + 10)
+    
+    AnchorPanels()
+    ProposalPanel:Show()
+end
+
+-- Botón de Aplicar (Verde)
+local pApplyBtn = CreateFrame("Button", nil, ProposalPanel, "BackdropTemplate")
+pApplyBtn:SetSize(130, 22)
+pApplyBtn:SetPoint("BOTTOMLEFT", 15, 10)
+pApplyBtn:SetBackdrop({
+    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+    edgeFile = "Interface\\Buttons\\WHITE8X8",
+    tile = true, tileSize = 16, edgeSize = 1,
+})
+pApplyBtn:SetBackdropColor(0.1, 0.3, 0.1, 1) -- Verde oscuro
+pApplyBtn:SetBackdropBorderColor(0.2, 0.6, 0.2, 1)
+pApplyBtn.text = pApplyBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+pApplyBtn.text:SetPoint("CENTER", 0, 0)
+pApplyBtn.text:SetText("Aplicar Asignación")
+
+pApplyBtn:SetScript("OnEnter", function(self)
+    self:SetBackdropColor(0.15, 0.45, 0.15, 1)
+end)
+pApplyBtn:SetScript("OnLeave", function(self)
+    self:SetBackdropColor(0.1, 0.3, 0.1, 1)
+end)
+pApplyBtn:SetScript("OnClick", function()
+    if currentProposal then
+        addonTable.Proposal:ApplyProposal(currentProposal)
+        ProposalPanel:Hide()
+        Grid:UpdateGrid()
+    end
+end)
+
+-- Botón de Cancelar (Rojo)
+local pCancelBtn = CreateFrame("Button", nil, ProposalPanel, "BackdropTemplate")
+pCancelBtn:SetSize(130, 22)
+pCancelBtn:SetPoint("BOTTOMRIGHT", -15, 10)
+pCancelBtn:SetBackdrop({
+    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+    edgeFile = "Interface\\Buttons\\WHITE8X8",
+    tile = true, tileSize = 16, edgeSize = 1,
+})
+pCancelBtn:SetBackdropColor(0.3, 0.1, 0.1, 1) -- Rojo oscuro
+pCancelBtn:SetBackdropBorderColor(0.6, 0.2, 0.2, 1)
+pCancelBtn.text = pCancelBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+pCancelBtn.text:SetPoint("CENTER", 0, 0)
+pCancelBtn.text:SetText("Cancelar")
+
+pCancelBtn:SetScript("OnEnter", function(self)
+    self:SetBackdropColor(0.45, 0.15, 0.15, 1)
+end)
+pCancelBtn:SetScript("OnLeave", function(self)
+    self:SetBackdropColor(0.3, 0.1, 0.1, 1)
+end)
+pCancelBtn:SetScript("OnClick", function()
+    ProposalPanel:Hide()
 end)
 
 -- ============================================================================
