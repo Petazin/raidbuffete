@@ -69,10 +69,8 @@ function ClickCast:CreateSecureButton(parent, name, size, spellID, targetUnit)
     return btn
 end
 
-function ClickCast:SetMasterButton(uiBtn, textWidget)
-    self.uiBtn = uiBtn
-    self.masterText = textWidget
-    
+-- Inicialización independiente del motor de ClickCast (independiente del Grid)
+function ClickCast:Initialize()
     -- Botón de macro siempre "visible" (renderizado en el centro de la pantalla) para que /click funcione con la UI cerrada
     if not self.macroBtn then
         self.macroBtn = CreateFrame("Button", "RaidBuffetAutoCastBtn", UIParent, "SecureActionButtonTemplate")
@@ -85,20 +83,45 @@ function ClickCast:SetMasterButton(uiBtn, textWidget)
         self.macroBtn:SetAttribute("type", "spell")
         self.macroBtn:SetAttribute("type1", "spell")
         self.macroBtn:Show()
+        
+        -- Configurar scripts de PreClick y PostClick en el botón de macro (idéntico al sistema de PallyPower)
+        self.macroBtn:SetScript("PreClick", function(self, button)
+            if InCombatLockdown() then return end
+            ClickCast:UpdateMasterButton()
+        end)
+        self.macroBtn:SetScript("PostClick", function(self, button)
+            if InCombatLockdown() then return end
+            ClickCast:ClearMasterButton()
+        end)
     end
     
-    -- Configurar scripts de PreClick y PostClick en el botón de macro (idéntico al sistema de PallyPower)
-    self.macroBtn:SetScript("PreClick", function(self, button)
-        if InCombatLockdown() then return end
-        ClickCast:UpdateMasterButton()
-    end)
-    self.macroBtn:SetScript("PostClick", function(self, button)
-        if InCombatLockdown() then return end
-        ClickCast:ClearMasterButton()
-    end)
+    -- Timer OnUpdate puramente VISUAL para la UI (no toca atributos seguros, seguro en combate)
+    if not self.visualTickerFrame then
+        local f = CreateFrame("Frame")
+        self.visualTickerFrame = f
+        f:RegisterEvent("PLAYER_REGEN_DISABLED")
+        f:RegisterEvent("PLAYER_REGEN_ENABLED")
+        f:SetScript("OnEvent", function(_, event)
+            ClickCast.inCombat = (event == "PLAYER_REGEN_DISABLED")
+        end)
+        
+        local timer = 0
+        f:SetScript("OnUpdate", function(_, elapsed)
+            timer = timer + elapsed
+            if timer > 0.5 then
+                timer = 0
+                ClickCast:UpdateVisualState()
+            end
+        end)
+    end
+end
+
+function ClickCast:SetMasterButton(uiBtn, textWidget)
+    self.uiBtn = uiBtn
+    self.masterText = textWidget
     
     -- Configurar scripts de PreClick y PostClick en el botón visual de la UI
-    if not self.uiBtn.scriptsSet then
+    if self.uiBtn and not self.uiBtn.scriptsSet then
         self.uiBtn:RegisterForClicks("LeftButtonDown", "RightButtonDown", "AnyUp", "AnyDown")
         self.uiBtn:SetScript("PreClick", function(self, button)
             if InCombatLockdown() then return end
@@ -111,42 +134,29 @@ function ClickCast:SetMasterButton(uiBtn, textWidget)
         self.uiBtn.scriptsSet = true
     end
     
-    -- Timer OnUpdate puramente VISUAL para la UI (no toca atributos seguros, seguro en combate)
-    local f = CreateFrame("Frame")
-    f:RegisterEvent("PLAYER_REGEN_DISABLED")
-    f:RegisterEvent("PLAYER_REGEN_ENABLED")
-    f:SetScript("OnEvent", function(_, event)
-        ClickCast.inCombat = (event == "PLAYER_REGEN_DISABLED")
-    end)
-    
-    local timer = 0
-    f:SetScript("OnUpdate", function(_, elapsed)
-        timer = timer + elapsed
-        if timer > 0.5 then
-            timer = 0
-            ClickCast:UpdateVisualState()
-        end
-    end)
-    
     ClickCast:UpdateVisualState()
 end
 
 function ClickCast:UpdateMasterButton()
-    if not self.uiBtn or not addonTable.Scanner or InCombatLockdown() then return end
+    if not addonTable.Scanner or InCombatLockdown() then return end
     
     local unit, spellName, playerName = addonTable.Scanner:GetNextBuffTarget()
     
     if unit and spellName and playerName then
         -- Asignar atributos seguros justo a tiempo antes del procesamiento del clic
-        self.uiBtn:SetAttribute("spell", spellName)
-        self.uiBtn:SetAttribute("spell1", spellName)
-        self.uiBtn:SetAttribute("unit", unit)
-        self.uiBtn:SetAttribute("unit1", unit)
+        if self.uiBtn then
+            self.uiBtn:SetAttribute("spell", spellName)
+            self.uiBtn:SetAttribute("spell1", spellName)
+            self.uiBtn:SetAttribute("unit", unit)
+            self.uiBtn:SetAttribute("unit1", unit)
+        end
         
-        self.macroBtn:SetAttribute("spell", spellName)
-        self.macroBtn:SetAttribute("spell1", spellName)
-        self.macroBtn:SetAttribute("unit", unit)
-        self.macroBtn:SetAttribute("unit1", unit)
+        if self.macroBtn then
+            self.macroBtn:SetAttribute("spell", spellName)
+            self.macroBtn:SetAttribute("spell1", spellName)
+            self.macroBtn:SetAttribute("unit", unit)
+            self.macroBtn:SetAttribute("unit1", unit)
+        end
         
         if self.floatBtn then
             self.floatBtn:SetAttribute("spell", spellName)
@@ -158,18 +168,22 @@ function ClickCast:UpdateMasterButton()
 end
 
 function ClickCast:ClearMasterButton()
-    if not self.uiBtn or InCombatLockdown() then return end
+    if InCombatLockdown() then return end
     
     -- Limpiar atributos seguros de lanzamiento después del procesamiento del clic
-    self.uiBtn:SetAttribute("spell", nil)
-    self.uiBtn:SetAttribute("spell1", nil)
-    self.uiBtn:SetAttribute("unit", nil)
-    self.uiBtn:SetAttribute("unit1", nil)
+    if self.uiBtn then
+        self.uiBtn:SetAttribute("spell", nil)
+        self.uiBtn:SetAttribute("spell1", nil)
+        self.uiBtn:SetAttribute("unit", nil)
+        self.uiBtn:SetAttribute("unit1", nil)
+    end
     
-    self.macroBtn:SetAttribute("spell", nil)
-    self.macroBtn:SetAttribute("spell1", nil)
-    self.macroBtn:SetAttribute("unit", nil)
-    self.macroBtn:SetAttribute("unit1", nil)
+    if self.macroBtn then
+        self.macroBtn:SetAttribute("spell", nil)
+        self.macroBtn:SetAttribute("spell1", nil)
+        self.macroBtn:SetAttribute("unit", nil)
+        self.macroBtn:SetAttribute("unit1", nil)
+    end
     
     if self.floatBtn then
         self.floatBtn:SetAttribute("spell", nil)
@@ -180,7 +194,7 @@ function ClickCast:ClearMasterButton()
 end
 
 function ClickCast:UpdateVisualState()
-    if not self.uiBtn or not addonTable.Scanner then return end
+    if not addonTable.Scanner then return end
     
     local unit, spellName, playerName = addonTable.Scanner:GetNextBuffTarget()
     
@@ -188,12 +202,14 @@ function ClickCast:UpdateVisualState()
         local icon = select(3, GetSpellInfo(spellName))
         local tex = icon or "Interface\\Icons\\INV_Misc_QuestionMark"
         
-        self.uiBtn.icon:SetTexture(tex)
-        self.uiBtn.icon:SetDesaturated(false)
-        self.uiBtn:SetAlpha(1)
-        if self.uiBtn.glowFrame then
-            self.uiBtn.glowFrame:Show()
-            self.uiBtn.glowAnimGroup:Play()
+        if self.uiBtn then
+            self.uiBtn.icon:SetTexture(tex)
+            self.uiBtn.icon:SetDesaturated(false)
+            self.uiBtn:SetAlpha(1)
+            if self.uiBtn.glowFrame then
+                self.uiBtn.glowFrame:Show()
+                self.uiBtn.glowAnimGroup:Play()
+            end
         end
         
         if self.floatBtn then
@@ -215,12 +231,15 @@ function ClickCast:UpdateVisualState()
         end
     else
         local tex = "Interface\\Icons\\Spell_Holy_AshesToAshes"
-        self.uiBtn.icon:SetTexture(tex)
-        self.uiBtn.icon:SetDesaturated(true)
-        self.uiBtn:SetAlpha(0.6)
-        if self.uiBtn.glowFrame then
-            self.uiBtn.glowFrame:Hide()
-            self.uiBtn.glowAnimGroup:Stop()
+        
+        if self.uiBtn then
+            self.uiBtn.icon:SetTexture(tex)
+            self.uiBtn.icon:SetDesaturated(true)
+            self.uiBtn:SetAlpha(0.6)
+            if self.uiBtn.glowFrame then
+                self.uiBtn.glowFrame:Hide()
+                self.uiBtn.glowAnimGroup:Stop()
+            end
         end
         
         if self.floatBtn then
@@ -272,3 +291,6 @@ function ClickCast:UpdateFloatButtonVisibility()
         self.floatBtn:Show()
     end
 end
+
+-- Inicializar inmediatamente al cargar el script
+ClickCast:Initialize()

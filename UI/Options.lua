@@ -41,11 +41,65 @@ reagentSlider:SetScript("OnValueChanged", function(self, value)
     end
 end)
 
+-- Checkboxes de opciones de Componentes y HUD
+local announceReagentsCheck = CreateFrame("CheckButton", "RaidBuffetAnnounceReagentsCheck", OptionsPanel, "UICheckButtonTemplate")
+announceReagentsCheck:SetPoint("TOPLEFT", reagentSlider, "BOTTOMLEFT", 0, -25)
+_G[announceReagentsCheck:GetName() .. "Text"]:SetText("Anunciar reactivos bajos en grupo/banda")
+announceReagentsCheck:SetScript("OnClick", function(self)
+    if RaidBuffetDB then
+        RaidBuffetDB.AnnounceLowReagents = self:GetChecked()
+    end
+end)
+
+local alertCapitalCheck = CreateFrame("CheckButton", "RaidBuffetAlertCapitalCheck", OptionsPanel, "UICheckButtonTemplate")
+alertCapitalCheck:SetPoint("TOPLEFT", announceReagentsCheck, "BOTTOMLEFT", 0, -5)
+_G[alertCapitalCheck:GetName() .. "Text"]:SetText("Alertar en Ciudades Capitales / descanso")
+alertCapitalCheck:SetScript("OnClick", function(self)
+    if RaidBuffetDB then
+        RaidBuffetDB.AlertInCapital = self:GetChecked()
+    end
+end)
+
+local showHUDCheck = CreateFrame("CheckButton", "RaidBuffetShowHUDCheck", OptionsPanel, "UICheckButtonTemplate")
+showHUDCheck:SetPoint("TOPLEFT", alertCapitalCheck, "BOTTOMLEFT", 0, -5)
+_G[showHUDCheck:GetName() .. "Text"]:SetText("Mostrar HUD flotante de buffs")
+showHUDCheck:SetScript("OnClick", function(self)
+    if RaidBuffetDB then
+        RaidBuffetDB.ShowFloatHUD = self:GetChecked()
+        if addonTable.UpdateFloatButtonVisibility then
+            addonTable.UpdateFloatButtonVisibility()
+        end
+    end
+end)
+
+-- Slider para el intervalo de alerta local de reactivos (en minutos)
+local warnIntervalSlider = CreateFrame("Slider", "RaidBuffetWarnIntervalSlider", OptionsPanel, "OptionsSliderTemplate")
+warnIntervalSlider:SetPoint("TOPLEFT", showHUDCheck, "BOTTOMLEFT", 0, -35)
+warnIntervalSlider:SetMinMaxValues(1, 30) -- De 1 a 30 minutos
+warnIntervalSlider:SetValueStep(1)
+warnIntervalSlider:SetObeyStepOnDrag(true)
+_G[warnIntervalSlider:GetName() .. "Low"]:SetText("1 min")
+_G[warnIntervalSlider:GetName() .. "High"]:SetText("30 min")
+
+local warnIntervalSliderText = _G[warnIntervalSlider:GetName() .. "Text"]
+warnIntervalSliderText:SetText("Frecuencia de Alerta de Reactivos")
+
+local warnIntervalValueText = warnIntervalSlider:CreateFontString(nil, "ARTWORK", "GameFontHighlightSmall")
+warnIntervalValueText:SetPoint("TOP", warnIntervalSlider, "BOTTOM", 0, -5)
+
+warnIntervalSlider:SetScript("OnValueChanged", function(self, value)
+    local rounded = math.floor(value + 0.5)
+    warnIntervalValueText:SetText("Repetir cada: " .. rounded .. " min")
+    if RaidBuffetDB then
+        RaidBuffetDB.ReagentWarnInterval = rounded * 60
+    end
+end)
+
 -- ============================================================================
 -- RADIO BUTTONS: Selector de Idioma (Evitamos UIDropDownMenu por compatibilidad)
 -- ============================================================================
 local langLabel = OptionsPanel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
-langLabel:SetPoint("TOPLEFT", reagentSlider, "BOTTOMLEFT", 0, -40)
+langLabel:SetPoint("TOPLEFT", warnIntervalSlider, "BOTTOMLEFT", 0, -30)
 langLabel:SetText("Forzar Idioma de la Interfaz (Requiere /reload):")
 
 local function CreateRadio(name, labelText, langCode)
@@ -200,11 +254,93 @@ for _, rb in ipairs(floatRadios) do
 end
 
 -- ============================================================================
+-- COLUMNA DERECHA: Selección Dinámica de Reactivos a Rastrear
+-- ============================================================================
+local reagentsSectionTitle = OptionsPanel:CreateFontString(nil, "ARTWORK", "GameFontNormal")
+reagentsSectionTitle:SetPoint("TOPLEFT", OptionsPanel, "TOPLEFT", 420, -100)
+reagentsSectionTitle:SetText("Componentes a Rastrear:")
+
+local reagentChecks = {}
+local _, playerClass = UnitClass("player")
+local classReagents = {}
+
+local mainReagent = addonTable.Constants.Reagents[playerClass]
+if mainReagent then
+    table.insert(classReagents, mainReagent)
+end
+local extraReagents = addonTable.Constants.ExtraReagents and addonTable.Constants.ExtraReagents[playerClass]
+if extraReagents then
+    for _, id in ipairs(extraReagents) do
+        table.insert(classReagents, id)
+    end
+end
+
+if #classReagents == 0 then
+    reagentsSectionTitle:SetText("Componentes a Rastrear:\n\n|cffaaaaaaTu clase no consume reactivos\npara lanzar bendiciones o buffs\nmasivos de grupo/banda.|r")
+end
+
+for i, id in ipairs(classReagents) do
+    local cb = CreateFrame("CheckButton", "RaidBuffetReagentTrackCheck" .. id, OptionsPanel, "UICheckButtonTemplate")
+    if i == 1 then
+        cb:SetPoint("TOPLEFT", reagentsSectionTitle, "BOTTOMLEFT", 0, -10)
+    else
+        cb:SetPoint("TOPLEFT", reagentChecks[i - 1], "BOTTOMLEFT", 0, -5)
+    end
+    
+    cb.reagentID = id
+    
+    -- Cargar nombre (usando GetReagentName exportado)
+    local name = addonTable.GetReagentName(id)
+    local desc = name
+    if cb.reagentID == 22148 then
+        desc = "Videpluma salvaje (Don de lo salvaje R3)"
+    elseif cb.reagentID == 17026 then
+        desc = "Raíz de espina salvaje (Don de lo salvaje R2)"
+    elseif cb.reagentID == 22147 then
+        desc = "Semilla de silexia (Renacer R6)"
+    elseif cb.reagentID == 17038 then
+        desc = "Semilla de pino hierro (Renacer R5)"
+    elseif cb.reagentID == 21177 then
+        desc = "Símbolo de reyes (Bendiciones)"
+    elseif cb.reagentID == 17029 then
+        desc = "Vela sagrada (Rezos R2/Max)"
+    elseif cb.reagentID == 17028 then
+        desc = "Vela sagrada ligera (Rezos R1)"
+    elseif cb.reagentID == 17020 then
+        desc = "Polvo arcano (Luminosidad)"
+    elseif cb.reagentID == 17031 then
+        desc = "Runa de teletransportación (Teleports)"
+    elseif cb.reagentID == 17032 then
+        desc = "Runa de portales (Portales)"
+    end
+    _G[cb:GetName() .. "Text"]:SetText(desc)
+    
+    cb:SetScript("OnClick", function(self)
+        if RaidBuffetDB and RaidBuffetDB.TrackedReagents then
+            RaidBuffetDB.TrackedReagents[self.reagentID] = self:GetChecked()
+            addonTable.Core:CheckReagents() -- Ejecutar comprobación al instante al alternar
+        end
+    end)
+    table.insert(reagentChecks, cb)
+end
+
+-- ============================================================================
 -- INICIALIZACIÓN
 -- ============================================================================
 OptionsPanel:SetScript("OnShow", function(self)
     if RaidBuffetDB then
         reagentSlider:SetValue(RaidBuffetDB.ReagentThreshold or 20)
+        announceReagentsCheck:SetChecked(RaidBuffetDB.AnnounceLowReagents or false)
+        alertCapitalCheck:SetChecked(RaidBuffetDB.AlertInCapital or false)
+        showHUDCheck:SetChecked(RaidBuffetDB.ShowFloatHUD ~= false)
+        warnIntervalSlider:SetValue((RaidBuffetDB.ReagentWarnInterval or 300) / 60)
+        
+        -- Inicializar checkboxes de reactivos
+        if reagentChecks then
+            for _, cb in ipairs(reagentChecks) do
+                cb:SetChecked(RaidBuffetDB.TrackedReagents[cb.reagentID] ~= false)
+            end
+        end
     end
     UpdateRadios()
     UpdateAnnounceRadios()

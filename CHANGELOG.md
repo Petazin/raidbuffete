@@ -2,6 +2,37 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.1-prep] - 2026-07-07
+
+### Added
+- **Optimización Inteligente de Asignaciones a Tanques e Híbridos (Varita Mágica)**:
+  - **Sobreescritura Exclusiva de Salvación**: Se rediseñó el motor para que los tanques (Guerreros, Druidas, Paladines) solo reciban bendiciones individuales de 5 min si es estrictamente necesario para pisar/anular la bendición de Salvación Superior de clase global de ese paladín.
+  - **Evitación de Colisiones de Buffs Redundantes**: Si el motor debe sobrescribir la Salvación global en el tanque con una bendición individual, se identifican las bendiciones superiores ya activas en el tanque de parte de otros paladines y se **excluyen** de las opciones disponibles (ej: si ya tiene Reyes Superior, el reemplazo de Salvación no colisionará y elegirá Luz o Santuario individual).
+  - **Priorización de Mitigación de Daño**: Se define una prioridad dinámica de buffs menores para tanques: Santuario (si es Prot) > Luz (sanación recibida) > Reyes > Sabiduría > Poderío, garantizando que el reemplazo de Salvación sea el más útil.
+  - **Priorización de Paladín Tanque**: Si existe un paladín tanque en el roster, el motor lo asignará **siempre y de forma prioritaria a lanzar Salvación Superior a la raid**, liberando a los paladines Holy y Retri para lanzar bendiciones superiores de estadísticas. El paladín tanque se auto-asignará y aplicará su propia bendición menor de reemplazo (como Santuario o Reyes menor).
+  - **Resolución de Conflictos en Clases Híbridas (Caster vs. Melee)**:
+    - **Casters Híbridos** (ej: Druidas Resto/Balance, Chamanes Resto/Ele, Paladines Holy): Si a su clase se le asigna Poderío Superior global (inútil para ellos), el motor les re-asigna individualmente Sabiduría (o Reyes) libre de colisiones.
+    - **Melees Híbridos** (ej: Druidas Feral, Chamanes Mejora): Si a su clase se le asigna Sabiduría Superior global (inútil para ellos), el motor les re-asigna individualmente Poderío (o Reyes) libre de colisiones.
+
+## [1.7.0-prep] - 2026-07-03
+
+### Added
+- **Identificación de Tanques Principales**:
+  - Agregada etiqueta visual cian `[T]` al lado del nombre abreviado de las clases y grupos en las cabeceras de columnas de la grilla principal si contienen tanques.
+  - Implementado icono de escudo de tanque nativo (`Interface\\GroupFrame\\UI-Group-MainTankIcon`) en el SubFrame individual al lado del nombre de cada Main Tank, y añadido aviso destacado `* TANQUE PRINCIPAL *` en su tooltip.
+- **Susurros de Asignaciones Individuales**:
+  - Incorporado el botón `"Susurrar Tareas"` en el panel de reportes para enviar de forma directa las tareas de buffs a todos los casters asignados.
+  - Añadida protección de cooldown de 10 segundos al botón tras su uso para evitar spam accidental por múltiples clics.
+  - Implementado despachador asíncrono con cola de mensajes y limitación de tasa (throttling de 1 susurro cada 0.3s) para evadir el límite anti-spam de Blizzard.
+- **Alertas de Reactivos en Capitales y Roster**:
+  - Incorporados checkboxes en el menú de opciones para activar anuncios al chat de grupo e iniciar alertas visuales y sonoras en capitales.
+  - Diseñada la alerta visual de pantalla (`UIErrorsFrame`) y acústica periódica (sonido de Blizzard, cada 30 segundos) al estar en zona de descanso (`IsResting()`) con componentes insuficientes.
+  - Añadido soporte para los componentes de Druida: Zarza espina salvaje (buff) y Semilla de renacimiento (resurrección).
+- **HUD Flotante Interactivo**:
+  - Implementado el panel `FloatBtn.hudPanel` acoplado al botón flotante principal, mostrando una fila compacta de micro-iconos de clase o grupo (14x14).
+  - Los micro-iconos muestran un borde rojo brillante si a esa columna le faltan tus buffs asignados y permiten hacer clic sobre ellos para targetear automáticamente al jugador que lo necesita (casteo seguro fuera de combate).
+  - Añadido toggle rápido mediante clic derecho sobre el botón flotante principal para expandir o colapsar el HUD interactivamente, además de un checkbox en opciones para desactivarlo permanentemente.
+
 ## [1.6.3-prep] - 2026-07-03
 
 ### Added

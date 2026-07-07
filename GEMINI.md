@@ -2,7 +2,56 @@
 
 Este archivo registra las decisiones arquitectónicas y el estado del proyecto generado por la IA en el addon RaidBuffet.
 
+## [07/07/2026] v1.7.1-prep - Optimización Inteligente de Asignaciones a Tanques e Híbridos (Varita Mágica)
+
+- **Optimización de Asignaciones Individuales a Tanques (`Core/Proposal.lua`)**:
+  - **Sobreescritura Exclusiva de Salvación**: Rediseñada la lógica combinatoria para que los tanques (Guerreros, Druidas, Paladines) solo reciban asignaciones individuales de buffs pequeños si es estrictamente necesario para pisar y anular la bendición de Salvación Superior de clase global asignada por ese paladín.
+  - **Prevención de Colisiones de Buffs**: Si se requiere un buff individual para pisar Salvación, el motor identifica las bendiciones superiores de clase ya asignadas al tanque por otros paladines y las **excluye** de las opciones válidas. Esto evita que colisione y anule buffs de 15 minutos en el tanque.
+  - **Priorización Dinámica de Mitigación**: El motor selecciona el mejor reemplazo útil para el tanque siguiendo un orden prioritario: Santuario (si el paladín es Prot y no está excluido) > Luz (aumenta sanación recibida) > Reyes > Sabiduría > Poderío.
+  - **Priorización de Paladín Tanque**: Si en el roster de paladines hay uno que es Tanque, el motor lo fuerza **siempre y con prioridad absoluta a lanzar Salvación Superior a la raid**, liberando de esta tarea a paladines Holy y Retri para que aporten Reyes/Might Superior. A su vez, se auto-asigna a sí mismo de forma individual su bendición de reemplazo útil (Santuario o Reyes menor) que él mismo se autolanzará.
+- **Resolución de Conflictos en Clases Híbridas (`Core/Proposal.lua`)**:
+  - **Casters Híbridos** (ej: Druidas Resto/Balance, Chamanes Resto/Ele, Paladines Holy): Si de forma global a su clase se le asigna Poderío Superior (Might, inútil para ellos), el motor les re-asigna individualmente Sabiduría o Reyes menor, libre de colisiones.
+  - **Melees Híbridos** (ej: Druidas Feral, Chamanes Mejora): Si de forma global a su clase se le asigna Sabiduría Superior (inútil para ellos), el motor les re-asigna individualmente Poderío o Reyes menor, libre de colisiones.
+- **Incremento de Versión Oficial (`RaidBuffet.toc`)**:
+  - Incrementada la versión oficial del addon a **v1.7.1-prep** para el release en CurseForge.
+
+## [03/07/2026] v1.7.0 - Completado de las 4 Ideas Semidesarrolladas (Hitos Visuales y de Seguridad)
+
+Implementación y desarrollo completo de las 4 ideas semidesarrolladas prioritarias de la lluvia de ideas.
+
+- **Identificación Visual de Tanques Principales (Idea 4)**:
+  - Modificado el scaner y el render de la grilla principal en `UI/Grid.lua` para añadir la etiqueta visual `[T]` de color cian al lado del nombre abreviado de las clases y grupos en las cabeceras de columnas que contengan Main Tanks activos.
+  - Implementado el icono del escudo de tanque de la interfaz de Blizzard (`Interface\\GroupFrame\\UI-Group-MainTankIcon`) en el SubFrame de asignaciones individuales junto al nombre del jugador de rol Tanque, y agregada la etiqueta destacada `* TANQUE PRINCIPAL *` en su tooltip.
+- **Susurros de Asignaciones Individuales con Throttling (Idea 12)**:
+  - Añadido el botón `"Susurrar Tareas"` dorado en la barra inferior del ReportPanel de `UI/Grid.lua`.
+  - Diseñada una cola de envío asíncrona segura (`whisperQueue` y despachador en `OnUpdate`) que transmite un susurro de asignaciones a casters cada **0.3 segundos**, evitando disparar el sistema anti-spam de Blizzard.
+  - Incorporado un cooldown de **10 segundos** al botón con indicador visual numérico para evitar su ejecución repetida accidental.
+- **Alertas de Reactivos en Ciudades Capitales y Semillas de Druida (Idea 7)**:
+  - Modificado `Core/Constants.lua` para rastrear las **Zarzas espina salvaje** y las **Semillas de renacimiento** (resurrección en combate) en los Druidas.
+  - Añadidos checkboxes en `UI/Options.lua` para configurar el anuncio en chat de grupo y la alerta de capitales.
+  - Creado un temporizador recurrente en `Core/Core.lua` que, si estás en zona de descanso (`IsResting()`), te avisa en pantalla (`UIErrorsFrame`) y por sonido nativo cada 30 segundos si te estás quedando sin reactivos.
+- **HUD Flotante Interactivo y Ocultable (Idea 2)**:
+  - Diseñado un mini-panel acoplado horizontal (`FloatBtn.hudPanel`) debajo del botón flotante principal de `UI/AutoCastFloat.lua` que despliega micro-iconos (14x14) de clase o grupo.
+  - Los micro-iconos se muestran opacos (35%) si están al día o con borde rojo brillante (100% opacidad) si les faltan buffs. Al hacer clic, targetea al primer jugador que necesita el buff (seguro fuera de combate).
+  - Implementado el toggle interactivo de ocultar/mostrar mediante **clic derecho** sobre el botón flotante principal y la opción de ocultarlo permanentemente en las opciones del addon.
+
+## [03/07/2026] v1.6.3-prep - Lluvia de Ideas: Inteligencia de Asignación y Alertas Bidireccionales
+
+Sesión de brainstorming enfocada en optimizar la velocidad de asignación y definir los mecanismos de comunicación y alertas tanto para jugadores con el addon como para quienes no disponen de él.
+
+- **Nuevas Ideas de Asignación Inteligente y Rápida**:
+  - *Failover* automático de buffs (reasignación dinámica si un caster asignado muere o se desconecta).
+  - Integración de buffs con el combat log para re-buffeo inmediato tras disipaciones enemigas al salir de combate.
+- **Mecanismos de Alertas (Con Addon)**:
+  - Sistema de petición silenciosa express (P2P AddonComm) para que los DPS soliciten buffs sin spamear canales.
+  - Integración visual (Overlay de unit frames) para ver el estado de buffs en ElvUI/Grid2/VuhDo.
+- **Mecanismos de Alertas (Sin Addon)**:
+  - Sistema inteligente de susurros reactivos (Smart Whisper Trigger) que añade automáticamente personas a la cola de casteo si piden buffs por chat y el jugador es el responsable.
+  - Notificación automatizada en la inicialización de raid susurrando individualmente sus tareas asignadas a los casters que no tengan el addon.
+  - Alerta masiva en canal de banda pre-pull para retrasar el inicio si faltan buffs clave.
+
 ## [03/07/2026] v1.6.3-prep - Motor de Propuestas de Asignación Inteligente (Varita Mágica)
+
 
 - **Motor Lógico de Propuestas (`Core/Proposal.lua`)**:
   - Implementado un algoritmo combinatorio inteligente para distribuir buffs óptimamente en bandas de 10 y 25 jugadores.

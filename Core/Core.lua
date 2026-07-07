@@ -1,6 +1,37 @@
 local addonName, addonTable = ...
 local L = addonTable.L
 
+-- Redirecciones para el Modo Test simulado (local a este archivo) con fallback robusto que preserva múltiples retornos
+local IsInRaid = function()
+    if addonTable.IsInRaid then return addonTable:IsInRaid() end
+    return _G.IsInRaid()
+end
+local IsInGroup = function()
+    if addonTable.IsInGroup then return addonTable:IsInGroup() end
+    return _G.IsInGroup()
+end
+local GetNumGroupMembers = function()
+    if addonTable.GetNumGroupMembers then return addonTable:GetNumGroupMembers() end
+    return _G.GetNumGroupMembers()
+end
+local GetRaidRosterInfo = function(idx)
+    if addonTable.GetRaidRosterInfo then return addonTable:GetRaidRosterInfo(idx) end
+    return _G.GetRaidRosterInfo(idx)
+end
+local UnitName = function(unit)
+    if addonTable.UnitName then return addonTable:UnitName(unit) end
+    return _G.UnitName(unit)
+end
+local UnitClass = function(unit)
+    if addonTable.UnitClass then return addonTable:UnitClass(unit) end
+    return _G.UnitClass(unit)
+end
+local GetPartyAssignment = function(asg, unit)
+    if addonTable.GetPartyAssignment then return addonTable:GetPartyAssignment(asg, unit) end
+    if addonTable.Sync and addonTable.Sync.GetPartyAssignment then return addonTable.Sync.GetPartyAssignment(asg, unit) end
+    return nil
+end
+
 -- Estado Global de Asignaciones
 -- Estructura: Assignments[ClaseQueLanza][NombreJugador][ClaseOGrupoObjetivo] = spellID
 addonTable.Assignments = {
@@ -19,6 +50,7 @@ frame:RegisterEvent("GROUP_ROSTER_UPDATE")
 frame:RegisterEvent("INSPECT_READY")
 frame:RegisterEvent("PLAYER_TARGET_CHANGED")
 frame:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
+frame:RegisterEvent("PLAYER_UPDATE_RESTING")
 
 -- Configuración por defecto
 local defaultDB = {
@@ -28,7 +60,11 @@ local defaultDB = {
     EnableFloatBtn = false,
     FloatVisibilityMode = "ALWAYS",
     FloatPosition = nil,
-    TalentsCache = {}
+    TalentsCache = {},
+    AnnounceLowReagents = false,
+    AlertInCapital = true,
+    ShowFloatHUD = true,
+    TrackedReagents = {}
 }
 
 frame:RegisterEvent("PLAYER_ENTERING_WORLD")
@@ -73,6 +109,10 @@ frame:SetScript("OnEvent", function(self, event, ...)
                 end
             end
             
+            if RaidBuffetDB.TrackedReagents == nil then
+                RaidBuffetDB.TrackedReagents = {}
+            end
+            
             -- Cargar caché local de talentos
             addonTable.TalentsCache = RaidBuffetDB.TalentsCache
             
@@ -98,6 +138,7 @@ frame:SetScript("OnEvent", function(self, event, ...)
     elseif event == "PLAYER_ENTERING_WORLD" then
         UpdateMyOwnTalentsInCache()
         addonTable.Core:ScanAllGroupTalents()
+        addonTable.Core:CheckReagents()
     elseif event == "BAG_UPDATE_DELAYED" then
         addonTable.Core:CheckReagents()
     elseif event == "GROUP_ROSTER_UPDATE" then
@@ -126,26 +167,194 @@ frame:SetScript("OnEvent", function(self, event, ...)
                 addonTable.Core:QueueInspect("mouseover")
             end
         end
+    elseif event == "PLAYER_UPDATE_RESTING" then
+        addonTable.Core:CheckReagents()
     end
 end)
 
--- Sistema Inteligente de Alertas de Componentes (Reagents)
-local lastWarnTime = 0
+-- Sistema Inteligente de Alertas de Componentes (Reagents) y Druida (Semillas)
+local lastWarnTime = 0       -- Cooldown para anuncio de chat de grupo (5 min)
+local lastLocalPrintTime = 0  -- Cooldown para print local en consola (10 seg)
+local capitalWarnTimer = nil
+
+local capitals = {
+    ["Shattrath City"] = true,
+    ["Shattrath"] = true,
+    ["Orgrimmar"] = true,
+    ["Ironforge"] = true,
+    ["Forjaz"] = true,
+    ["Stormwind City"] = true,
+    ["Stormwind"] = true,
+    ["Ventormenta"] = true,
+    ["Thunder Bluff"] = true,
+    ["Cima del Trueno"] = true,
+    ["Undercity"] = true,
+    ["Entrañas"] = true,
+    ["Darnassus"] = true,
+    ["Silvermoon City"] = true,
+    ["Ciudad de Lunargenta"] = true,
+    ["The Exodar"] = true,
+    ["El Éxodar"] = true
+}
+
+local function IsInCapitalOrResting()
+    return IsResting() or capitals[GetRealZoneText()]
+end
+
+local function GetReagentName(id)
+    local name = GetItemInfo(id)
+    if name then return name end
+    
+    -- Fallback estático localizado si no está en la caché de Blizzard
+    local lang = (RaidBuffetDB and RaidBuffetDB.ForceLang) or "AUTO"
+    if lang == "AUTO" then
+        lang = GetLocale()
+    end
+    
+    local isSpanish = (lang == "esES" or lang == "esMX")
+    local staticNames = isSpanish and {
+        [21177] = "Símbolo de reyes",
+        [17029] = "Vela sagrada",
+        [17020] = "Polvo arcano",
+        [22148] = "Videpluma salvaje",
+        [17026] = "Raíz de espina salvaje",
+        [22147] = "Semilla de silexia",
+        [17038] = "Semilla de pino hierro",
+        [17031] = "Runa de teletransportación",
+        [17032] = "Runa de portales",
+        [17028] = "Vela sagrada ligera"
+    } or {
+        [21177] = "Symbol of Kings",
+        [17029] = "Sacred Candle",
+        [17020] = "Arcane Powder",
+        [22148] = "Wild Quillvine",
+        [17026] = "Wild Spineleaf",
+        [22147] = "Flintweed Seed",
+        [17038] = "Ironwood Seed",
+        [17031] = "Rune of Teleportation",
+        [17032] = "Rune of Portals",
+        [17028] = "Devout Candle"
+    }
+    
+    return staticNames[id] or ("Item " .. id)
+end
+addonTable.GetReagentName = GetReagentName
+
+local function StartCapitalWarningTimer()
+    if capitalWarnTimer then return end
+    capitalWarnTimer = C_Timer.NewTicker(30, function()
+        if IsInCapitalOrResting() and RaidBuffetDB.AlertInCapital then
+            local _, classFileName = UnitClass("player")
+            local items = {}
+            local mainR = addonTable.Constants.Reagents[classFileName]
+            if mainR then table.insert(items, mainR) end
+            local extraR = addonTable.Constants.ExtraReagents and addonTable.Constants.ExtraReagents[classFileName]
+            if extraR then
+                for _, id in ipairs(extraR) do table.insert(items, id) end
+            end
+            
+            local threshold = RaidBuffetDB.ReagentThreshold or 20
+            local lowItems = {}
+            for _, id in ipairs(items) do
+                -- Ignorar si está desmarcado en las opciones
+                if RaidBuffetDB.TrackedReagents and RaidBuffetDB.TrackedReagents[id] == false then
+                    -- Omitir
+                else
+                    local count = GetItemCount(id)
+                    if count < threshold then
+                        local name = GetReagentName(id)
+                        table.insert(lowItems, name .. ": " .. count)
+                    end
+                end
+            end
+            
+            if #lowItems > 0 then
+                UIErrorsFrame:AddMessage("|cffff0000[RaidBuffet] ALERT: Reactivos bajos! Compra en el vendedor: " .. table.concat(lowItems, ", ") .. "|r", 1, 0, 0, 1, 5)
+                PlaySound(8959) -- Sonido de error de Blizzard
+            else
+                if capitalWarnTimer then
+                    capitalWarnTimer:Cancel()
+                    capitalWarnTimer = nil
+                end
+            end
+        else
+            if capitalWarnTimer then
+                capitalWarnTimer:Cancel()
+                capitalWarnTimer = nil
+            end
+        end
+    end)
+end
+
 function addonTable.Core:CheckReagents()
-    local _, classFileName = UnitClassBase("player")
-    local reagentID = addonTable.Constants.Reagents[classFileName]
+    local _, classFileName = UnitClass("player")
+    local items = {}
+    local mainR = addonTable.Constants.Reagents[classFileName]
+    if mainR then table.insert(items, mainR) end
+    local extraR = addonTable.Constants.ExtraReagents and addonTable.Constants.ExtraReagents[classFileName]
+    if extraR then
+        for _, id in ipairs(extraR) do table.insert(items, id) end
+    end
     
-    if not reagentID then return end -- La clase no usa componentes de buff masivos
+    if #items == 0 then return end
     
-    local count = GetItemCount(reagentID)
     local threshold = RaidBuffetDB.ReagentThreshold or 20
+    local hasAnyLow = false
+    local lowItemsList = {}
     
-    if count < threshold then
-        -- Evitar spam: avisar una vez cada 5 minutos como máximo
-        if GetTime() - lastWarnTime > 300 then
-            local itemName = GetItemInfo(reagentID) or ("Reagent " .. reagentID)
-            print("|cffff0000[RaidBuffet]|r " .. (L["REAGENTS_LOW"] or "Reagents Low!") .. " (" .. itemName .. ": " .. count .. ")")
-            lastWarnTime = GetTime()
+    for _, id in ipairs(items) do
+        -- Si el jugador desactivó el rastreo para este reactivo, lo ignoramos
+        if RaidBuffetDB.TrackedReagents and RaidBuffetDB.TrackedReagents[id] == false then
+            -- Omitir
+        else
+            local count = GetItemCount(id)
+            if count < threshold then
+                hasAnyLow = true
+                local name = GetReagentName(id)
+                table.insert(lowItemsList, { name = name, count = count })
+            end
+        end
+    end
+    
+    if hasAnyLow then
+        local now = GetTime()
+        
+        -- 1. Alerta local en consola de chat y pantalla estilo Raid Warning (cooldown parametrizado en la DB)
+        local warnInterval = (RaidBuffetDB and RaidBuffetDB.ReagentWarnInterval) or 300
+        if now - lastLocalPrintTime > warnInterval then
+            for _, itemData in ipairs(lowItemsList) do
+                -- Print en chat
+                print("|cffff0000[RaidBuffet]|r " .. (L["REAGENTS_LOW"] or "Componentes Bajos!") .. " (" .. itemData.name .. ": " .. itemData.count .. ")")
+                
+                -- Alerta visual en el centro de la pantalla (Raid Warning local)
+                RaidNotice_AddMessage(RaidWarningFrame, "|cffff0000[RaidBuffet] ALERT: ¡Componentes Bajos! (" .. itemData.name .. ": " .. itemData.count .. ")|r", ChatTypeInfo["RAID_WARNING"])
+            end
+            PlaySound(8959) -- Sonido de error nativo
+            lastLocalPrintTime = now
+        end
+        
+        -- 2. Anuncio en chat de grupo (cooldown estricto de 5 minutos para evitar spam a otros)
+        if now - lastWarnTime > 300 then
+            if RaidBuffetDB.AnnounceLowReagents and IsInGroup() then
+                local channel = IsInRaid() and "RAID" or "PARTY"
+                local itemsStrList = {}
+                for _, itemData in ipairs(lowItemsList) do
+                    table.insert(itemsStrList, itemData.name .. ": " .. itemData.count)
+                end
+                SendChatMessage("[RaidBuffet] Alerta: Me quedan pocos componentes de clase (" .. table.concat(itemsStrList, ", ") .. "). ¡Por favor, comerciadme si tenéis de sobra!", channel)
+            end
+            lastWarnTime = now
+        end
+        
+        -- 3. Alerta visual en pantalla y sonora periódica si estamos en área de descanso o capital
+        if IsInCapitalOrResting() and RaidBuffetDB.AlertInCapital then
+            local textList = {}
+            for _, itemData in ipairs(lowItemsList) do
+                table.insert(textList, itemData.name .. " (" .. itemData.count .. ")")
+            end
+            UIErrorsFrame:AddMessage("|cffff0000[RaidBuffet] ALERT: Reactivos bajos! Compra en el vendedor: " .. table.concat(textList, ", ") .. "|r", 1, 0, 0, 1, 5)
+            PlaySound(8959)
+            StartCapitalWarningTimer()
         end
     end
 end
@@ -165,7 +374,7 @@ local function GetTalentRankBySpellID(tabIndex, spellID, isInspect)
 end
 
 function addonTable.Core:GetMyTalents()
-    local _, classFileName = UnitClassBase("player")
+    local _, classFileName = UnitClass("player")
     local data = {
         class = classFileName,
         imprWisdom = 0,

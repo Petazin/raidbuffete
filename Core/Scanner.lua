@@ -2,6 +2,37 @@ local addonName, addonTable = ...
 local L = addonTable.L
 local Constants = addonTable.Constants
 
+-- Redirecciones para el Modo Test simulado (local a este archivo) con fallback robusto que preserva múltiples retornos
+local IsInRaid = function()
+    if addonTable.IsInRaid then return addonTable:IsInRaid() end
+    return _G.IsInRaid()
+end
+local IsInGroup = function()
+    if addonTable.IsInGroup then return addonTable:IsInGroup() end
+    return _G.IsInGroup()
+end
+local GetNumGroupMembers = function()
+    if addonTable.GetNumGroupMembers then return addonTable:GetNumGroupMembers() end
+    return _G.GetNumGroupMembers()
+end
+local GetRaidRosterInfo = function(idx)
+    if addonTable.GetRaidRosterInfo then return addonTable:GetRaidRosterInfo(idx) end
+    return _G.GetRaidRosterInfo(idx)
+end
+local UnitName = function(unit)
+    if addonTable.UnitName then return addonTable:UnitName(unit) end
+    return _G.UnitName(unit)
+end
+local UnitClass = function(unit)
+    if addonTable.UnitClass then return addonTable:UnitClass(unit) end
+    return _G.UnitClass(unit)
+end
+local GetPartyAssignment = function(asg, unit)
+    if addonTable.GetPartyAssignment then return addonTable:GetPartyAssignment(asg, unit) end
+    if addonTable.Sync and addonTable.Sync.GetPartyAssignment then return addonTable.Sync.GetPartyAssignment(asg, unit) end
+    return nil
+end
+
 local Scanner = {}
 addonTable.Scanner = Scanner
 

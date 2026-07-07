@@ -7,7 +7,23 @@ addonTable.Constants = {
         ["PALADIN"] = 21177, -- Símbolo de reyes (Symbol of Kings)
         ["PRIEST"]  = 17029, -- Vela sagrada (Sacred Candle)
         ["MAGE"]    = 17020, -- Polvo arcano (Arcane Powder)
-        ["DRUID"]   = 17026  -- Zarza espina salvaje (Wild Spineleaf)
+        ["DRUID"]   = 22148  -- Videpluma salvaje (Wild Quillvine)
+    },
+    
+    -- Reactivos adicionales por clase a monitorizar (ej: Semillas de Druida, Runas de Mago, Velas menores de Priest)
+    ExtraReagents = {
+        ["DRUID"] = {
+            17026, -- Raíz de espina salvaje (Don de lo salvaje R2)
+            22147, -- Semilla de silexia (Flintweed Seed - Renacer R6)
+            17038  -- Semilla de pino hierro (Ironwood Seed - Renacer R5)
+        },
+        ["MAGE"] = {
+            17031, -- Runa de teletransportación (Rune of Teleportation)
+            17032  -- Runa de portales (Rune of Portals)
+        },
+        ["PRIEST"] = {
+            17028  -- Vela sagrada ligera (Devout Candle - Rezos menores)
+        }
     },
     
     -- Hechizos asignables (>10 min), agrupados por clase

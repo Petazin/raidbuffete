@@ -4,6 +4,41 @@ local Sync = addonTable.Sync
 local Constants = addonTable.Constants
 local Scanner = addonTable.Scanner
 
+-- Redirecciones para el Modo Test simulado (local a este archivo) con fallback robusto que preserva múltiples retornos
+local IsInRaid = function()
+    if addonTable.IsInRaid then return addonTable:IsInRaid() end
+    return _G.IsInRaid()
+end
+local IsInGroup = function()
+    if addonTable.IsInGroup then return addonTable:IsInGroup() end
+    return _G.IsInGroup()
+end
+local GetNumGroupMembers = function()
+    if addonTable.GetNumGroupMembers then return addonTable:GetNumGroupMembers() end
+    return _G.GetNumGroupMembers()
+end
+local GetRaidRosterInfo = function(idx)
+    if addonTable.GetRaidRosterInfo then return addonTable:GetRaidRosterInfo(idx) end
+    return _G.GetRaidRosterInfo(idx)
+end
+local UnitName = function(unit)
+    if addonTable.UnitName then return addonTable:UnitName(unit) end
+    return _G.UnitName(unit)
+end
+local UnitClass = function(unit)
+    if addonTable.UnitClass then return addonTable:UnitClass(unit) end
+    return _G.UnitClass(unit)
+end
+local GetPartyAssignment = function(asg, unit)
+    if addonTable.GetPartyAssignment then return addonTable:GetPartyAssignment(asg, unit) end
+    if addonTable.Sync and addonTable.Sync.GetPartyAssignment then return addonTable.Sync.GetPartyAssignment(asg, unit) end
+    return nil
+end
+local UnitIsGroupLeader = function(unit)
+    if addonTable.UnitIsGroupLeader then return addonTable:UnitIsGroupLeader(unit) end
+    return _G.UnitIsGroupLeader(unit)
+end
+
 local ReportPanel, SubFrame, ProposalPanel
 
 local Grid = CreateFrame("Frame", "RaidBuffetGridFrame", UIParent, "BackdropTemplate")
@@ -14,6 +49,7 @@ addonTable.UI = Grid
 local specMenuFrame = CreateFrame("Frame", "RaidBuffetSpecMenuFrame", UIParent, "UIDropDownMenuTemplate")
 
 local function HasEditPermissions()
+    if addonTable.TestModeActive then return true end
     if not IsInGroup() then return true end
     
     local myName = UnitName("player")
@@ -357,6 +393,7 @@ Grid.rows = {}
 
 -- Comprueba si el jugador actual tiene permisos de edición (Líder de grupo, Asistente de Raid o Delegado)
 local function HasEditPermissions()
+    if addonTable.TestModeActive then return true end
     if not IsInGroup() then return true end
     if UnitIsGroupLeader("player") then return true end
     if IsInRaid() and UnitIsRaidOfficer("player") then return true end
@@ -704,6 +741,7 @@ function Grid:UpdateGrid()
         local showAll = showAllCheck:GetChecked()
         local _, myClass = UnitClass("player")
         
+
         if not Grid.headers then Grid.headers = {} end
         if not Grid.playerRows then Grid.playerRows = {} end
         
@@ -724,18 +762,24 @@ function Grid:UpdateGrid()
         -- 1. Construir el Roster actual
         local roster = {}
         local isMTMap = {} -- Mapa rápido para ver si el caster es Tanque Principal
+        local classHasMT = {}
+        local groupHasMT = {}
         
         if IsInRaid() then
             for i = 1, GetNumGroupMembers() do
-                local name, _, _, _, _, classFileName = GetRaidRosterInfo(i)
+                local name, _, subgroup, _, _, classFileName = GetRaidRosterInfo(i)
                 if name and classFileName then
                     name = string.match(name, "([^%-]+)")
                     if not roster[classFileName] then roster[classFileName] = {} end
                     table.insert(roster[classFileName], name)
                     
-                    local mtName = GetPartyAssignment("MAINTANK", "raid" .. i)
-                    if mtName and mtName == name then
+                    local isMT = Scanner:IsMainTank("raid" .. i)
+                    if isMT then
                         isMTMap[name] = true
+                        classHasMT[classFileName] = true
+                        if subgroup then
+                            groupHasMT[subgroup] = true
+                        end
                     end
                 end
             end
@@ -749,9 +793,11 @@ function Grid:UpdateGrid()
                     if not roster[classFileName] then roster[classFileName] = {} end
                     table.insert(roster[classFileName], name)
                     
-                    local mtName = GetPartyAssignment("MAINTANK", unit)
-                    if mtName and mtName == name then
+                    local isMT = Scanner:IsMainTank(unit)
+                    if isMT then
                         isMTMap[name] = true
+                        classHasMT[classFileName] = true
+                        groupHasMT[1] = true
                     end
                 end
             end
@@ -762,9 +808,11 @@ function Grid:UpdateGrid()
                 if not roster[classFileName] then roster[classFileName] = {} end
                 table.insert(roster[classFileName], name)
                 
-                local mtName = GetPartyAssignment("MAINTANK", "player")
-                if mtName and mtName == name then
+                local isMT = Scanner:IsMainTank("player")
+                if isMT then
                     isMTMap[name] = true
+                    classHasMT[classFileName] = true
+                    groupHasMT[1] = true
                 end
             end
         else
@@ -774,6 +822,13 @@ function Grid:UpdateGrid()
                 name = string.match(name, "([^%-]+)")
                 if not roster[classFileName] then roster[classFileName] = {} end
                 table.insert(roster[classFileName], name)
+                
+                local isMT = Scanner:IsMainTank("player")
+                if isMT then
+                    isMTMap[name] = true
+                    classHasMT[classFileName] = true
+                    groupHasMT[1] = true
+                end
             end
         end
         
@@ -837,12 +892,20 @@ function Grid:UpdateGrid()
                         if targetType == "CLASS" then
                             targetID = Constants.ClassOrder[i]
                             local locClass = L:GetClassName(targetID)
-                            btn.text:SetText(string.sub(locClass, 1, 3))
+                            if classHasMT[targetID] then
+                                btn.text:SetText(string.sub(locClass, 1, 3) .. " |cff00ffff[T]|r")
+                            else
+                                btn.text:SetText(string.sub(locClass, 1, 3))
+                            end
                             local color = GetClassColorObj(targetID)
                             btn.text:SetTextColor(color.r, color.g, color.b)
                         else
                             targetID = "GROUP_" .. i
-                            btn.text:SetText("G" .. i)
+                            if groupHasMT[i] then
+                                btn.text:SetText("G" .. i .. " |cff00ffff[T]|r")
+                            else
+                                btn.text:SetText("G" .. i)
+                            end
                             btn.text:SetTextColor(1, 0.8, 0)
                         end
                         
@@ -1587,6 +1650,7 @@ local function GetUnitRole(unit, name, class)
 end
 
 function SubFrame:RefreshList()
+
     -- Actualizar el brillo dorado del selector superior de clase
     SubFrame:UpdateSelectorGlow()
 
@@ -1717,15 +1781,27 @@ function SubFrame:RefreshList()
                 roleText = "|cff00ff00HEL|r"
             end
             
-            local displayName = roleText .. "\n" .. string.sub(pData.name, 1, 4)
+            local isMT = Scanner:IsMainTank(pData.unit)
+            local displayName
+            if isMT then
+                displayName = roleText .. "\n|cff00ffff" .. string.sub(pData.name, 1, 4) .. "|r"
+                if not h.shieldIcon then
+                    h.shieldIcon = h:CreateTexture(nil, "OVERLAY")
+                    h.shieldIcon:SetSize(12, 12)
+                    h.shieldIcon:SetTexture("Interface\\GroupFrame\\UI-Group-MainTankIcon")
+                    h.shieldIcon:SetPoint("TOPRIGHT", h, "TOPRIGHT", 2, 2)
+                end
+                h.shieldIcon:Show()
+            else
+                displayName = roleText .. "\n" .. string.sub(pData.name, 1, 4)
+                if h.shieldIcon then h.shieldIcon:Hide() end
+            end
             h.text:SetText(displayName)
             
             local color = GetClassColorObj(pData.class)
-            -- Nota: la segunda línea heredará el color de la clase gracias a SetTextColor si no está formateada
             h.text:SetTextColor(color.r, color.g, color.b)
             
             -- Tooltip con nombre completo y rol
-            local isMT = Scanner:IsMainTank(pData.unit)
             h:SetScript("OnEnter", function(self)
                 GameTooltip:SetOwner(self, "ANCHOR_TOP")
                 GameTooltip:ClearLines()
@@ -1735,10 +1811,16 @@ function SubFrame:RefreshList()
                 end
                 
                 local roleDesc = "Daño (DPS)"
-                if role == "TANK" then roleDesc = "Tanque Principal"
-                elseif role == "HEALER" then roleDesc = "Sanador (Healer)" end
+                if role == "TANK" then 
+                    roleDesc = "Tanque Principal"
+                elseif role == "HEALER" then 
+                    roleDesc = "Sanador (Healer)" 
+                end
                 
                 GameTooltip:AddDoubleLine(titleName, "|cffffd100" .. roleDesc .. "|r", color.r, color.g, color.b, 1, 0.82, 0)
+                if isMT then
+                    GameTooltip:AddLine("|cffff0000* TANQUE PRINCIPAL *|r", 1, 0, 0)
+                end
                 GameTooltip:Show()
             end)
             h:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -1992,6 +2074,10 @@ Grid:SetScript("OnShow", function(self)
     SubFrame:SetPoint("TOPLEFT", Grid, "TOPRIGHT", 2, 0)
     SubFrame:RefreshList()
     SubFrame:Show()
+    
+    if addonTable.TestModeActive and addonTable.TestPanel then
+        addonTable.TestPanel:ShowPanel()
+    end
 end)
 
 Grid:SetScript("OnHide", function(self)
@@ -1999,13 +2085,16 @@ Grid:SetScript("OnHide", function(self)
     if ReportPanel then
         ReportPanel:Hide()
     end
+    if addonTable.TestPanel then
+        addonTable.TestPanel:Hide()
+    end
 end)
 
 -- ============================================================================
 -- PANEL DE REPORTES DE FALTANTES (INTEGRADO - DRAWER IZQUIERDO)
 -- ============================================================================
 ReportPanel = CreateFrame("Frame", "RaidBuffetReportPanel", Grid, "BackdropTemplate")
-ReportPanel:SetSize(300, 300)
+ReportPanel:SetSize(380, 300)
 ReportPanel:SetPoint("TOPRIGHT", Grid, "TOPLEFT", -2, 0)
 ReportPanel:SetBackdrop({
     bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
@@ -2225,6 +2314,119 @@ function ReportPanel:AnnounceMissing()
     AnnounceToGroup(lines)
 end
 
+-- Despachador de cola asíncrono para susurros (Anti-Spam / Throttling)
+local whisperQueue = {}
+local whisperDelay = 0.3
+local whisperTimer = 0
+local whisperFrame = CreateFrame("Frame")
+
+whisperFrame:SetScript("OnUpdate", function(self, elapsed)
+    if #whisperQueue == 0 then
+        self:Hide()
+        return
+    end
+    
+    whisperTimer = whisperTimer + elapsed
+    if whisperTimer >= whisperDelay then
+        whisperTimer = 0
+        local item = table.remove(whisperQueue, 1)
+        if item and item.target and item.msg then
+            SendChatMessage(item.msg, "WHISPER", nil, item.target)
+        end
+    end
+end)
+whisperFrame:Hide()
+
+function ReportPanel:WhisperAssignments()
+    local assignments = addonTable.Assignments
+    local myName = UnitName("player")
+    
+    local castersToWhisper = {}
+    
+    for class, casters in pairs(assignments) do
+        for casterName, targets in pairs(casters) do
+            if casterName ~= myName then
+                local casterExists = false
+                if IsInRaid() then
+                    for i = 1, GetNumGroupMembers() do
+                        local name = GetRaidRosterInfo(i)
+                        if name and string.match(name, "([^%-]+)") == casterName then
+                            casterExists = true
+                            break
+                        end
+                    end
+                elseif IsInGroup() then
+                    for i = 1, GetNumSubgroupMembers() do
+                        local name = UnitName("party" .. i)
+                        if name and string.match(name, "([^%-]+)") == casterName then
+                            casterExists = true
+                            break
+                        end
+                    end
+                end
+                
+                if casterExists then
+                    castersToWhisper[casterName] = { class = class, targets = targets }
+                end
+            end
+        end
+    end
+    
+    local queuedCount = 0
+    for name, data in pairs(castersToWhisper) do
+        local buffsList = {}
+        for targetID, spellID in pairs(data.targets) do
+            local spellName = L:GetSpellInfo(spellID)
+            if spellName and spellID ~= "CLEAR" and spellID ~= 0 then
+                local targetDesc = targetID
+                if string.find(targetID, "GROUP_") then
+                    targetDesc = "G" .. string.match(targetID, "GROUP_(%d+)")
+                else
+                    targetDesc = L:GetClassName(targetID) or targetID
+                    targetDesc = string.sub(targetDesc, 1, 3) -- Abreviar clase
+                end
+                table.insert(buffsList, spellName .. " a " .. targetDesc)
+            end
+        end
+        
+        if #buffsList > 0 then
+            local intro = "[RaidBuffet] Tus tareas asignadas: "
+            local msg = intro .. table.concat(buffsList, ", ")
+            
+            if string.len(msg) > 235 then
+                local currentMsg = intro
+                for idx, buffStr in ipairs(buffsList) do
+                    if string.len(currentMsg .. buffStr) > 230 then
+                        table.insert(whisperQueue, { target = name, msg = currentMsg })
+                        currentMsg = "[RaidBuffet] ... y: " .. buffStr
+                        queuedCount = queuedCount + 1
+                    else
+                        if currentMsg == intro or currentMsg == "[RaidBuffet] ... y: " then
+                            currentMsg = currentMsg .. buffStr
+                        else
+                            currentMsg = currentMsg .. ", " .. buffStr
+                        end
+                    end
+                end
+                if currentMsg ~= "[RaidBuffet] ... y: " then
+                    table.insert(whisperQueue, { target = name, msg = currentMsg })
+                    queuedCount = queuedCount + 1
+                end
+            else
+                table.insert(whisperQueue, { target = name, msg = msg })
+                queuedCount = queuedCount + 1
+            end
+        end
+    end
+    
+    if queuedCount > 0 then
+        print(string.format("|cff00ff00[RaidBuffet]|r Enviando tareas individuales a %d buffers. Cola de transmisión iniciada de forma segura...", queuedCount))
+        whisperFrame:Show()
+    else
+        print("|cffff0000[RaidBuffet]|r No hay tareas asignadas para otros jugadores en la raid.")
+    end
+end
+
 -- Botones inferiores compactos
 local rRefreshBtn = CreateFrame("Button", nil, ReportPanel, "BackdropTemplate")
 rRefreshBtn:SetSize(65, 22)
@@ -2252,7 +2454,7 @@ rRefreshBtn:SetScript("OnClick", function()
 end)
 
 local rAnnounceAssignBtn = CreateFrame("Button", nil, ReportPanel, "BackdropTemplate")
-rAnnounceAssignBtn:SetSize(100, 22)
+rAnnounceAssignBtn:SetSize(95, 22)
 rAnnounceAssignBtn:SetPoint("LEFT", rRefreshBtn, "RIGHT", 5, 0)
 rAnnounceAssignBtn:SetBackdrop({
     bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
@@ -2277,7 +2479,7 @@ rAnnounceAssignBtn:SetScript("OnClick", function()
 end)
 
 local rAnnounceMissingBtn = CreateFrame("Button", nil, ReportPanel, "BackdropTemplate")
-rAnnounceMissingBtn:SetSize(100, 22)
+rAnnounceMissingBtn:SetSize(95, 22)
 rAnnounceMissingBtn:SetPoint("LEFT", rAnnounceAssignBtn, "RIGHT", 5, 0)
 rAnnounceMissingBtn:SetBackdrop({
     bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
@@ -2299,6 +2501,61 @@ rAnnounceMissingBtn:SetScript("OnLeave", function(self)
 end)
 rAnnounceMissingBtn:SetScript("OnClick", function()
     ReportPanel:AnnounceMissing()
+end)
+
+local rWhisperAssignBtn = CreateFrame("Button", nil, ReportPanel, "BackdropTemplate")
+rWhisperAssignBtn:SetSize(100, 22)
+rWhisperAssignBtn:SetPoint("LEFT", rAnnounceMissingBtn, "RIGHT", 5, 0)
+rWhisperAssignBtn:SetBackdrop({
+    bgFile = "Interface\\ChatFrame\\ChatFrameBackground",
+    edgeFile = "Interface\\Buttons\\WHITE8X8",
+    tile = true, tileSize = 16, edgeSize = 1,
+})
+rWhisperAssignBtn:SetBackdropColor(0.14, 0.14, 0.14, 1)
+rWhisperAssignBtn:SetBackdropBorderColor(0.7, 0.5, 0.2, 0.5)
+rWhisperAssignBtn.text = rWhisperAssignBtn:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+rWhisperAssignBtn.text:SetPoint("CENTER", 0, 0)
+rWhisperAssignBtn.text:SetText("Susurrar Tareas")
+rWhisperAssignBtn:SetScript("OnEnter", function(self)
+    if self.cooldownActive then return end
+    self:SetBackdropColor(0.22, 0.22, 0.22, 1)
+    self:SetBackdropBorderColor(0.85, 0.7, 0.3, 1)
+end)
+rWhisperAssignBtn:SetScript("OnLeave", function(self)
+    if self.cooldownActive then return end
+    self:SetBackdropColor(0.14, 0.14, 0.14, 1)
+    self:SetBackdropBorderColor(0.7, 0.5, 0.2, 0.5)
+end)
+rWhisperAssignBtn:SetScript("OnClick", function(self)
+    if self.cooldownActive then return end
+    
+    ReportPanel:WhisperAssignments()
+    
+    -- Aplicar Cooldown visual y de lógica por 10 segundos
+    self.cooldownActive = true
+    self:SetAlpha(0.5)
+    self:SetBackdropColor(0.08, 0.08, 0.08, 1)
+    self:SetBackdropBorderColor(0.3, 0.3, 0.3, 0.5)
+    self.text:SetTextColor(0.5, 0.5, 0.5)
+    
+    local remaining = 10
+    self.text:SetText("Esperar (" .. remaining .. "s)")
+    
+    local cooldownTimer
+    cooldownTimer = C_Timer.NewTicker(1, function()
+        remaining = remaining - 1
+        if remaining > 0 then
+            self.text:SetText("Esperar (" .. remaining .. "s)")
+        else
+            cooldownTimer:Cancel()
+            self.cooldownActive = nil
+            self:SetAlpha(1.0)
+            self:SetBackdropColor(0.14, 0.14, 0.14, 1)
+            self:SetBackdropBorderColor(0.7, 0.5, 0.2, 0.5)
+            self.text:SetTextColor(1, 0.82, 0)
+            self.text:SetText("Susurrar Tareas")
+        end
+    end)
 end)
 
 ReportPanel:RegisterEvent("UNIT_AURA")
@@ -2491,7 +2748,46 @@ SLASH_RAIDBUFFET1 = "/rb"
 SLASH_RAIDBUFFET2 = "/raidbuffet"
 
 SlashCmdList["RAIDBUFFET"] = function(msg)
-    if msg == "debug" then
+    local cmd, arg = string.match(msg, "^(%S+)%s*(%S*)$")
+    if not cmd then cmd = msg end
+    
+    if cmd == "test" then
+        local sub, rName, rClass, rGroup, rRole, rSpec = string.match(arg or "", "^(%S+)%s*(%S*)%s*(%S*)%s*(%S*)%s*(%S*)%s*(%S*)$")
+        if not sub or sub == "" then
+            sub = arg
+        end
+        
+        if sub == "10" then
+            addonTable.Core:StartTestMode(10)
+            if not Grid:IsShown() then Grid:Show() end
+            if addonTable.TestPanel then addonTable.TestPanel:ShowPanel() end
+        elseif sub == "25" then
+            addonTable.Core:StartTestMode(25)
+            if not Grid:IsShown() then Grid:Show() end
+            if addonTable.TestPanel then addonTable.TestPanel:ShowPanel() end
+        elseif sub == "off" then
+            addonTable.Core:StopTestMode()
+            if addonTable.TestPanel then addonTable.TestPanel:Hide() end
+        elseif sub == "clear" then
+            addonTable.Core:ClearTestRoster()
+            if addonTable.TestPanel then addonTable.TestPanel:UpdateRosterList() end
+        elseif sub == "list" then
+            addonTable.Core:ListTestRoster()
+        elseif sub == "add" then
+            addonTable.Core:AddTestMember(rName, rClass, rGroup, rRole, rSpec)
+            if addonTable.TestPanel then addonTable.TestPanel:UpdateRosterList() end
+        else
+            print("|cffff0000[RaidBuffet]|r Uso del Modo Test:")
+            print("  /rb test 10 | 25 | off (Carga plantillas)")
+            print("  /rb test clear (Vacia el roster, te deja solo a ti)")
+            print("  /rb test list (Muestra los miembros virtuales)")
+            print("  /rb test add <nombre> <clase> <subgrupo> [tank] [spec]")
+            print("    * Clase: paladin, priest, mage, druid, warrior, rogue, hunter, warlock, shaman")
+            print("    * Grupo: 1 al 5")
+            print("    * spec (opcional): wisdom, might, sant, mark, fort, spirit")
+        end
+        return
+    elseif msg == "debug" then
         print("|cffffff00[RaidBuffet Debug]|r")
         if Grid.lastDebugClasses then
             print("Classes to Draw:", table.concat(Grid.lastDebugClasses, ", "))

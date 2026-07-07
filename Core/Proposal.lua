@@ -4,6 +4,14 @@ local Constants = addonTable.Constants
 local Scanner = addonTable.Scanner
 local Sync = addonTable.Sync
 
+-- Redirecciones para el Modo Test simulado (local a este archivo)
+local IsInRaid = function() return addonTable:IsInRaid() end
+local IsInGroup = function() return addonTable:IsInGroup() end
+local GetNumGroupMembers = function() return addonTable:GetNumGroupMembers() end
+local GetRaidRosterInfo = function(idx) return addonTable:GetRaidRosterInfo(idx) end
+local UnitName = function(unit) return addonTable:UnitName(unit) end
+local UnitClass = function(unit) return addonTable:UnitClass(unit) end
+
 local Proposal = {}
 addonTable.Proposal = Proposal
 
@@ -64,7 +72,7 @@ function Proposal:GenerateProposal()
     for _, pData in ipairs(roster) do
         local isMT = Scanner:IsMainTank(pData.unit)
         if isMT then
-            table.insert(tanks, pData.name)
+            table.insert(tanks, { name = pData.name, class = pData.class })
         end
         
         if pData.class == "PALADIN" then
@@ -235,19 +243,29 @@ function Proposal:GenerateProposal()
             local cached = addonTable.TalentsCache[palName]
             local spec = cached and cached.spec or "NONE"
             
-            if spec == "HOLY" then table.insert(holyPals, palName)
-            elseif spec == "PROT" then table.insert(protPals, palName)
-            elseif spec == "RETRI" then table.insert(retriPals, palName)
-            else table.insert(otherPals, palName)
+            local isTank = false
+            for _, tData in ipairs(tanks) do
+                if tData.name == palName then
+                    isTank = true
+                    break
+                end
+            end
+            
+            local palData = { name = palName, spec = spec, isTank = isTank }
+            
+            if spec == "HOLY" then table.insert(holyPals, palData)
+            elseif spec == "PROT" then table.insert(protPals, palData)
+            elseif spec == "RETRI" then table.insert(retriPals, palData)
+            else table.insert(otherPals, palData)
             end
         end
         
         -- Unificar en una lista ordenada por especialidad para prioridades
         local sortedPals = {}
-        for _, p in ipairs(holyPals) do table.insert(sortedPals, { name = p, spec = "HOLY" }) end
-        for _, p in ipairs(protPals) do table.insert(sortedPals, { name = p, spec = "PROT" }) end
-        for _, p in ipairs(retriPals) do table.insert(sortedPals, { name = p, spec = "RETRI" }) end
-        for _, p in ipairs(otherPals) do table.insert(sortedPals, { name = p, spec = "NONE" }) end
+        for _, p in ipairs(holyPals) do table.insert(sortedPals, p) end
+        for _, p in ipairs(protPals) do table.insert(sortedPals, p) end
+        for _, p in ipairs(retriPals) do table.insert(sortedPals, p) end
+        for _, p in ipairs(otherPals) do table.insert(sortedPals, p) end
         
         -- Spells IDs:
         -- Kings (Reyes) = 20217, sup = 25898
@@ -295,19 +313,17 @@ function Proposal:GenerateProposal()
                 end
             end
             
-            -- Tanques individuales: Santuario si es Prot
-            if pal.spec == "PROT" then
-                for _, tName in ipairs(tanks) do
-                    t[tName] = 20911 -- Santuario individual (pequeño)
-                end
-            end
-            
             table.insert(proposal.summary, string.format("|cfff58cbaPaladín|r: |cffddaa77%s|r (%s) asignado a bendiciones superiores.", pal.name, pal.spec))
             
         elseif numPals == 2 then
             -- 2 Paladines
             local palA = sortedPals[1] -- Holy/Prot preferido
             local palB = sortedPals[2] -- Retri/Other preferido
+            
+            -- SI existe un paladín tanque, que sea el que tira Salvación (palB)
+            if palA.isTank and not palB.isTank then
+                palA, palB = palB, palA
+            end
             
             proposal.assignments["PALADIN"][palA.name] = {}
             proposal.assignments["PALADIN"][palB.name] = {}
@@ -327,12 +343,6 @@ function Proposal:GenerateProposal()
                 tB[class] = 25895 -- Salvación Superior (Todos los DPS/Healers híbridos la reciben de clase)
             end
             
-            -- Tanques individuales: Reyes de A y Santuario/Luz de B (Pisa la Salvación de clase de B)
-            for _, tName in ipairs(tanks) do
-                tA[tName] = 20217 -- Reyes pequeña
-                tB[tName] = (palB.spec == "PROT" or palA.spec == "PROT") and 20911 or 19977 -- Santuario o Luz pequeña
-            end
-            
             table.insert(proposal.summary, string.format("|cfff58cbaPaladines|r: |cffddaa77%s|r (Wisdom/Kings sup) y |cffddaa77%s|r (Salvation sup).", palA.name, palB.name))
             
         else
@@ -340,6 +350,13 @@ function Proposal:GenerateProposal()
             local palA = sortedPals[1] -- Holy
             local palB = sortedPals[2] -- Prot
             local palC = sortedPals[3] -- Retri
+            
+            -- SI existe un paladín tanque, que sea el que tira Salvación (palC)
+            if palA.isTank and not palC.isTank then
+                palA, palC = palC, palA
+            elseif palB.isTank and not palC.isTank then
+                palB, palC = palC, palB
+            end
             
             proposal.assignments["PALADIN"][palA.name] = {}
             proposal.assignments["PALADIN"][palB.name] = {}
@@ -363,13 +380,6 @@ function Proposal:GenerateProposal()
                 tC[class] = 25895 -- Salvación Superior (Para todos los DPS/Healers de clase)
             end
             
-            -- Tanques individuales: Luz de A, Santuario de B y Reyes de C (Pisa la Salvación de C)
-            for _, tName in ipairs(tanks) do
-                tA[tName] = 19977 -- Luz pequeña
-                tB[tName] = 20911 -- Santuario pequeña
-                tC[tName] = 20217 -- Reyes pequeña
-            end
-            
             table.insert(proposal.summary, string.format("|cfff58cbaPaladines|r: |cffddaa77%s|r (Wisdom), |cffddaa77%s|r (Kings/Might), |cffddaa77%s|r (Salvation) sup.", palA.name, palB.name, palC.name))
             
             -- Paladines extra bufan Luz Superior a todos
@@ -383,6 +393,145 @@ function Proposal:GenerateProposal()
                     end
                 end
                 table.insert(proposal.summary, string.format("|cffaaaaaaPaladines extra bufan Luz Superior.|r"))
+            end
+        end
+        
+        -- ========================================================================
+        -- POST-PROCESADOR DINÁMICO DE TANQUES E HÍBRIDOS (PALADINES)
+        -- ========================================================================
+        for palName, assignments in pairs(proposal.assignments["PALADIN"]) do
+            -- Obtener la especialidad de este paladín
+            local palSpec = "NONE"
+            for _, pData in ipairs(sortedPals) do
+                if pData.name == palName then
+                    palSpec = pData.spec
+                    break
+                end
+            end
+            
+            for _, pData in ipairs(roster) do
+                local pName = pData.name
+                local pClass = pData.class
+                local pUnit = pData.unit
+                local assignedClassSpell = assignments[pClass]
+                
+                -- Determinar rol del personaje individual
+                local isCaster = (pClass == "MAGE" or pClass == "WARLOCK" or pClass == "PRIEST")
+                local isMelee = (pClass == "WARRIOR" or pClass == "ROGUE" or pClass == "HUNTER")
+                local pSpec = addonTable.TalentsCache[pName] and addonTable.TalentsCache[pName].spec or "NONE"
+                
+                if pClass == "DRUID" then
+                    if pSpec == "FERAL" then isMelee = true else isCaster = true end
+                elseif pClass == "SHAMAN" then
+                    if pSpec == "ENHANCEMENT" then isMelee = true else isCaster = true end
+                elseif pClass == "PALADIN" then
+                    if pSpec == "PROT" or pSpec == "RETRI" then isMelee = true else isCaster = true end
+                end
+                
+                local isTank = Scanner:IsMainTank(pUnit)
+                
+                if isTank then
+                    -- ============================================================
+                    -- REGLA 1: EL TANQUE NUNCA RECIBE SALVACIÓN
+                    -- ============================================================
+                    if assignedClassSpell == 25895 then -- Greater Blessing of Salvation
+                        -- Identificar bendiciones superiores (Greater) excluidas
+                        local excludedSpells = {}
+                        for otherPalName, otherAssignments in pairs(proposal.assignments["PALADIN"]) do
+                            if otherPalName ~= palName then
+                                local otherSpell = otherAssignments[pClass]
+                                if otherSpell then
+                                    if otherSpell == 25898 then excludedSpells[20217] = true
+                                    elseif otherSpell == 27141 then excludedSpells[19740] = true
+                                    elseif otherSpell == 27143 then excludedSpells[19742] = true
+                                    elseif otherSpell == 25899 then excludedSpells[20911] = true
+                                    elseif otherSpell == 25890 then excludedSpells[19977] = true
+                                    end
+                                end
+                            end
+                        end
+                        
+                        -- Seleccionar el mejor reemplazo individual
+                        local selectedSpell = nil
+                        if palSpec == "PROT" and not excludedSpells[20911] then selectedSpell = 20911
+                        elseif not excludedSpells[19977] then selectedSpell = 19977
+                        elseif not excludedSpells[20217] then selectedSpell = 20217
+                        elseif not excludedSpells[19742] and (pClass == "DRUID" or pClass == "PALADIN") then selectedSpell = 19742
+                        elseif not excludedSpells[19740] then selectedSpell = 19740
+                        end
+                        
+                        if not selectedSpell then
+                            selectedSpell = (palSpec == "PROT") and 20911 or 20217
+                        end
+                        assignments[pName] = selectedSpell
+                    else
+                        assignments[pName] = nil
+                    end
+                    
+                elseif isCaster and assignedClassSpell == 27141 then
+                    -- ============================================================
+                    -- REGLA 2: CASTER HÍBRIDO RECIBE PODERÍO SUPERIOR (INÚTIL)
+                    -- ============================================================
+                    local excludedSpells = {}
+                    for otherPalName, otherAssignments in pairs(proposal.assignments["PALADIN"]) do
+                        if otherPalName ~= palName then
+                            local otherSpell = otherAssignments[pClass]
+                            if otherSpell then
+                                if otherSpell == 25898 then excludedSpells[20217] = true
+                                elseif otherSpell == 27141 then excludedSpells[19740] = true
+                                elseif otherSpell == 27143 then excludedSpells[19742] = true
+                                elseif otherSpell == 25899 then excludedSpells[20911] = true
+                                elseif otherSpell == 25890 then excludedSpells[19977] = true
+                                end
+                            end
+                        end
+                    end
+                    
+                    local selectedSpell = nil
+                    if not excludedSpells[19742] then selectedSpell = 19742
+                    elseif not excludedSpells[20217] then selectedSpell = 20217
+                    elseif not excludedSpells[19977] then selectedSpell = 19977
+                    end
+                    
+                    if selectedSpell then
+                        assignments[pName] = selectedSpell
+                    else
+                        assignments[pName] = nil
+                    end
+                    
+                elseif isMelee and assignedClassSpell == 27143 then
+                    -- ============================================================
+                    -- REGLA 3: MELEE HÍBRIDO RECIBE SABIDURÍA SUPERIOR (INÚTIL)
+                    -- ============================================================
+                    local excludedSpells = {}
+                    for otherPalName, otherAssignments in pairs(proposal.assignments["PALADIN"]) do
+                        if otherPalName ~= palName then
+                            local otherSpell = otherAssignments[pClass]
+                            if otherSpell then
+                                if otherSpell == 25898 then excludedSpells[20217] = true
+                                elseif otherSpell == 27141 then excludedSpells[19740] = true
+                                elseif otherSpell == 27143 then excludedSpells[19742] = true
+                                elseif otherSpell == 25899 then excludedSpells[20911] = true
+                                elseif otherSpell == 25890 then excludedSpells[19977] = true
+                                end
+                            end
+                        end
+                    end
+                    
+                    local selectedSpell = nil
+                    if not excludedSpells[19740] then selectedSpell = 19740
+                    elseif not excludedSpells[20217] then selectedSpell = 20217
+                    elseif not excludedSpells[19977] then selectedSpell = 19977
+                    end
+                    
+                    if selectedSpell then
+                        assignments[pName] = selectedSpell
+                    else
+                        assignments[pName] = nil
+                    end
+                else
+                    assignments[pName] = nil
+                end
             end
         end
     end

@@ -16,6 +16,7 @@ end
 
 -- Comprueba si el emisor de un mensaje de red tiene permisos de edición (Líder o Delegado)
 local function SenderHasPermissions(sender)
+    if addonTable.TestModeActive then return true end
     if not IsInGroup() then return true end
     local cleanSender = GetCleanName(sender)
     
