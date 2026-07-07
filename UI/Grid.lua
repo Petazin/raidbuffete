@@ -2212,6 +2212,55 @@ function ReportPanel:UpdateReport()
     ReportScrollChild:SetHeight(yOffset + 10)
 end
 
+local function SendSafeChatMessage(msg, channel)
+    if not msg or msg == "" then return end
+    
+    -- Si mide 250 o menos, se envía de forma directa
+    if string.len(msg) <= 250 then
+        SendChatMessage(msg, channel)
+        return
+    end
+    
+    -- Si es más largo, lo dividimos inteligentemente por partes ( WoW tiene un límite estricto de 255 caracteres )
+    local remaining = msg
+    local partIndex = 1
+    while string.len(remaining) > 0 do
+        if string.len(remaining) <= 250 then
+            SendChatMessage(remaining, channel)
+            break
+        end
+        
+        -- Tomar los primeros 245 caracteres para evaluar un punto de corte seguro
+        local chunk = string.sub(remaining, 1, 245)
+        local cutIndex = 245
+        
+        -- Intentar cortar en la última coma o espacio dentro de los caracteres finales del chunk
+        local lastComma = string.find(chunk, ",[^,]*$")
+        local lastSpace = string.find(chunk, "%s[^%s]*$")
+        
+        if lastComma and lastComma > 120 then
+            cutIndex = lastComma
+        elseif lastSpace and lastSpace > 120 then
+            cutIndex = lastSpace
+        end
+        
+        local part = string.sub(remaining, 1, cutIndex)
+        SendChatMessage(part, channel)
+        
+        -- Avanzar en el string restante, omitiendo comas o espacios iniciales sobrantes
+        remaining = string.sub(remaining, cutIndex + 1)
+        remaining = string.gsub(remaining, "^[%s,]+", "")
+        
+        -- Añadir prefijo de continuación
+        if string.len(remaining) > 0 then
+            remaining = "... " .. remaining
+        end
+        
+        partIndex = partIndex + 1
+        if partIndex > 10 then break end -- Medida de seguridad contra bucles infinitos
+    end
+end
+
 local function AnnounceToGroup(lines)
     local channel = RaidBuffetDB and RaidBuffetDB.AnnounceChannel or "RAID"
     if not IsInGroup() then
@@ -2221,7 +2270,7 @@ local function AnnounceToGroup(lines)
         return
     end
     for _, line in ipairs(lines) do
-        SendChatMessage(line, channel)
+        SendSafeChatMessage(line, channel)
     end
 end
 

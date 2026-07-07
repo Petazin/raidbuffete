@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.2-prep] - 2026-07-07
+
+### Fixed
+- **Protección contra Límite de Caracteres en Chat (Bugfix)**:
+  - Corregido el error de Lua `SendChatMessage(): Chat message limits exceeded` que se arrojaba al anunciar asignaciones muy largas en el chat del grupo/banda o en alerta de banda (`RAID_WARNING`).
+  - Implementada la función `SendSafeChatMessage` que divide de manera inteligente y segura cualquier mensaje de anuncio que exceda de 250 caracteres en varios fragmentos concatenados con un prefijo de continuación (`... `), garantizando el cumplimiento de la limitación física estricta de 255 caracteres de Blizzard.
+
 ## [1.7.1-prep] - 2026-07-07
 
 ### Added

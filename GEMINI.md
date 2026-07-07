@@ -2,6 +2,14 @@
 
 Este archivo registra las decisiones arquitectónicas y el estado del proyecto generado por la IA en el addon RaidBuffet.
 
+## [07/07/2026] v1.7.2-prep - Corrección del Límite de Caracteres de Chat en Anuncios de Asignaciones
+
+- **Bugfix de Excedente de Chat (`UI/Grid.lua`)**:
+  - Implementada la función `SendSafeChatMessage(msg, channel)` para proteger todas las transmisiones al chat público de WoW que realiza el addon.
+  - El motor ahora detecta si un mensaje mide más de 250 caracteres. En ese caso, busca el último delimitador de espacio o coma `,` antes de los 245 caracteres para cortar el mensaje de forma limpia y segura, enviando los fragmentos secuencialmente con un prefijo de continuación `... ` para que el chat de banda no pierda legibilidad ni genere errores de Lua de tipo `Chat message limits exceeded`.
+- **Actualización de Versión Oficial (`RaidBuffet.toc`)**:
+  - Incrementada la versión del addon a **v1.7.2-prep** para el release en CurseForge.
+
 ## [07/07/2026] v1.7.1-prep - Optimización Inteligente de Asignaciones a Tanques e Híbridos (Varita Mágica)
 
 - **Optimización de Asignaciones Individuales a Tanques (`Core/Proposal.lua`)**:
