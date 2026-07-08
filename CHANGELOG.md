@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.4-prep] - 2026-07-08
+
+### Added
+- **Período de Gracia en Alertas de Salvación a Tanques**:
+  - Se rediseñó la alerta pasiva de tanques con Salvación (`CheckTankSalvationAlerts` en `Core/Scanner.lua`) para evitar que envíe susurros instantáneos al momento de aplicar bendiciones globales de clase.
+  - Implementada una cola de tanques pendientes de susurro (`pendingWhispers`) con un período de gracia configurable de **10 segundos**. El motor registrará al tanque y esperará ese intervalo; si durante ese tiempo la Salvación es pisada por una bendición individual o es cancelada, la alerta se cancela silenciosamente sin emitir ningún susurro, evitando spam innecesario durante las rotaciones de buffs.
+
 ## [1.7.3-prep] - 2026-07-08
 
 ### Fixed

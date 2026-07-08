@@ -2,6 +2,14 @@
 
 Este archivo registra las decisiones arquitectónicas y el estado del proyecto generado por la IA en el addon RaidBuffet.
 
+## [08/07/2026] v1.7.4-prep - Período de Gracia en Alertas de Salvación a Tanques
+
+- **Periodo de Gracia para Alertas de Salvación (`Core/Scanner.lua`)**:
+  - Implementada una cola de tanques con Salvación detectada (`pendingWhispers`) que introduce un retardo (período de gracia) de **10 segundos** antes de enviar un susurro de alerta al jugador tanque.
+  - Esto evita enviar alertas falsas e instantáneas cuando el paladín aplica Salvación Superior de clase global a toda la raid, dando tiempo suficiente para que el paladín (o el motor de auto-buff) le aplique el buff individual pequeño de reemplazo (Reyes o Santuario) para pisarla. Si la Salvación es anulada antes del tiempo de gracia, la alerta se cancela silenciosamente sin emitir ningún susurro.
+- **Actualización de Versión Oficial (`RaidBuffet.toc`)**:
+  - Incrementada la versión del addon a **v1.7.4-prep** para el release en CurseForge.
+
 ## [08/07/2026] v1.7.3-prep - Solución de Bucle Infinito en Autobuff y Equivalencias Dinámicas
 
 - **Bugfix de Bucle Infinito en Detección de Buffs (`Core/Scanner.lua`)**:

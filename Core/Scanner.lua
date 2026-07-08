@@ -165,11 +165,17 @@ function Scanner:IsMainTank(unit)
     return false
 end
 
-local lastWhisperTimes = {} -- Cooldown de 60 segundos para evitar spam por tanque
+local lastWhisperTimes = {}  -- Cooldown de 60 segundos para evitar spam por tanque
+local pendingWhispers = {}   -- Registro de tanques detectados con Salvación { [name] = detectTime }
+local GRACE_PERIOD = 10      -- Período de gracia de 10 segundos antes de enviar el susurro
+local WHISPER_COOLDOWN = 60  -- Cooldown de 60 segundos entre susurros al mismo tanque
 
--- Escanea la raid buscando tanques con la Bendición de Salvación activa y les susurra para que la cancelen
+-- Escanea la raid buscando tanques con la Bendición de Salvación activa y les susurra tras un período de gracia
 function Scanner:CheckTankSalvationAlerts()
-    if not IsInGroup() then return end
+    if not IsInGroup() then
+        if next(pendingWhispers) then pendingWhispers = {} end
+        return
+    end
     
     local _, myClass = UnitClass("player")
     if myClass ~= "PALADIN" then return end
@@ -206,6 +212,8 @@ function Scanner:CheckTankSalvationAlerts()
         end
     end
     
+    local now = GetTime()
+    
     for _, uData in ipairs(units) do
         if Scanner:IsMainTank(uData.unit) then
             -- Solo avisa si este paladín local le tiene asignado algún buff a su clase o a él individualmente
@@ -218,12 +226,25 @@ function Scanner:CheckTankSalvationAlerts()
                                (spellSalvationSmall and UnitHasBuff(uData.unit, spellSalvationSmall))
                                
                 if hasSalv then
-                    local now = GetTime()
-                    local lastTime = lastWhisperTimes[uData.name] or 0
-                    if now - lastTime > 60 then
-                        SendChatMessage("[RaidBuffet]: Eres Tanque Principal y tienes activa la Bendición de Salvación. Por favor, cancélala (/cancelaura Bendición de salvación).", "WHISPER", nil, uData.name)
-                        lastWhisperTimes[uData.name] = now
+                    if not pendingWhispers[uData.name] then
+                        -- Registrar la detección inicial
+                        pendingWhispers[uData.name] = now
+                    else
+                        -- Ya estaba registrado, comprobar si se cumplió el período de gracia
+                        local elapsed = now - pendingWhispers[uData.name]
+                        if elapsed >= GRACE_PERIOD then
+                            local lastTime = lastWhisperTimes[uData.name] or 0
+                            if now - lastTime > WHISPER_COOLDOWN then
+                                SendChatMessage("[RaidBuffet]: Eres Tanque Principal y tienes activa la Bendición de Salvación. Por favor, cancélala (/cancelaura Bendición de salvación).", "WHISPER", nil, uData.name)
+                                lastWhisperTimes[uData.name] = now
+                                -- Reiniciar el tiempo de detección para evitar spam en el siguiente ciclo de cooldown
+                                pendingWhispers[uData.name] = now
+                            end
+                        end
                     end
+                else
+                    -- Si ya no tiene Salvación, limpiar el registro pendiente inmediatamente
+                    pendingWhispers[uData.name] = nil
                 end
             end
         end
