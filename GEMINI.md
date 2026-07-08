@@ -2,6 +2,14 @@
 
 Este archivo registra las decisiones arquitectónicas y el estado del proyecto generado por la IA en el addon RaidBuffet.
 
+## [08/07/2026] v1.7.3-prep - Solución de Bucle Infinito en Autobuff y Equivalencias Dinámicas
+
+- **Bugfix de Bucle Infinito en Detección de Buffs (`Core/Scanner.lua`)**:
+  - Se corrigió un error de lógica de escaneo en `UnitHasBuff` donde el addon buscaba en la barra del jugador nombres de hechizos de casteo que no coinciden con los nombres de buffs reales que aplica el cliente (como `"Bendición de reyes superior"` o `"Rezo de entereza"`, que en la barra aparecen como `"Bendición de reyes"` y `"Palabra de poder: entereza"`). Esto provocaba que el addon considerara siempre al jugador desbuffeado, haciendo que el botón de auto-buff entrara en un bucle infinito.
+  - Implementada una tabla de equivalencias de buffs (`buffEquivalences`) e inicialización diferida (`InitBuffEquivalences`) basada en `GetSpellInfo`. Traduce dinámicamente rezos de clase a individuales, bendiciones grandes de paladín a pequeñas, y buffs de mago y druida de forma cruzada, resolviendo la detección exacta e independiente del idioma del cliente.
+- **Actualización de Versión Oficial (`RaidBuffet.toc`)**:
+  - Incrementada la versión del addon a **v1.7.3-prep** para el release en CurseForge.
+
 ## [07/07/2026] v1.7.2-prep - Corrección del Límite de Caracteres de Chat en Anuncios de Asignaciones
 
 - **Bugfix de Excedente de Chat (`UI/Grid.lua`)**:

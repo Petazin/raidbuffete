@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.3-prep] - 2026-07-08
+
+### Fixed
+- **Corrección de Bucle Infinito en Botón de AutoBuff (Bugfix Crítico)**:
+  - Resuelto un fallo de diseño en la detección de buffs (`UnitHasBuff` en `Core/Scanner.lua`) donde el addon buscaba en la barra de buffs del jugador el nombre exacto de la bendición superior (ej. `"Bendición de reyes superior"`) o del rezo de grupo (ej. `"Rezo de entereza"`). Como el cliente de WoW aplica el buff con el nombre de la versión pequeña o individual (ej. `"Bendición de reyes"` o `"Palabra de poder: entereza"`), el addon nunca los encontraba, entrando en un bucle infinito de castear el mismo buff.
+  - Implementada una tabla dinámica y localizada de equivalencia de buffs (`InitBuffEquivalences`) cargada directamente al inicio desde las APIs del cliente, mapeando de forma segura y transparente bendiciones superiores a pequeñas, rezos de sacerdotes a buffs individuales, e intelecto de mago o marca de druida de forma cruzada, solucionando los bucles de casteo para todas las clases.
+
 ## [1.7.2-prep] - 2026-07-07
 
 ### Fixed

@@ -36,20 +36,85 @@ end
 local Scanner = {}
 addonTable.Scanner = Scanner
 
+local buffEquivalences = nil
+
+local function InitBuffEquivalences()
+    buffEquivalences = {}
+    
+    -- Mapeo de Paladín: Superior -> Pequeña
+    local palMapping = {
+        [25898] = 20217, -- Reyes superior -> Reyes pequeña
+        [25890] = 19977, -- Luz superior -> Luz pequeña
+        [27141] = 19740, -- Poderío superior -> Poderío pequeña
+        [25895] = 1038,  -- Salvación superior -> Salvación pequeña
+        [27143] = 19742, -- Sabiduría superior -> Sabiduría pequeña
+        [25899] = 20911  -- Santuario superior -> Santuario pequeña
+    }
+    for supID, smallID in pairs(palMapping) do
+        local supName = GetSpellInfo(supID)
+        local smallName = GetSpellInfo(smallID)
+        if supName and smallName then
+            buffEquivalences[supName] = smallName
+        end
+    end
+
+    -- Mapeo de Sacerdote: Rezo -> Individual
+    local priestMapping = {
+        [25392] = 25389, -- Rezo de entereza -> Palabra de poder: entereza
+        [39362] = 25433, -- Rezo de protección contra las Sombras -> Protección contra las Sombras
+        [32999] = 25312  -- Rezo de espíritu -> Espíritu divino
+    }
+    for groupID, indID in pairs(priestMapping) do
+        local groupName = GetSpellInfo(groupID)
+        local indName = GetSpellInfo(indID)
+        if groupName and indName then
+            buffEquivalences[groupName] = indName
+        end
+    end
+
+    -- Mapeo cruzado de Mago: Luminosidad <-> Intelecto
+    local mageLumi = GetSpellInfo(27127) -- Luminosidad arcana
+    local mageIntel = GetSpellInfo(27126) -- Intelecto arcano
+    if mageLumi and mageIntel then
+        buffEquivalences[mageLumi] = mageIntel
+        buffEquivalences[mageIntel] = mageLumi
+    end
+
+    -- Mapeo cruzado de Druida: Don <-> Marca
+    local druidDon = GetSpellInfo(26991) -- Don de lo Salvaje
+    local druidMarca = GetSpellInfo(26990) -- Marca de lo Salvaje
+    if druidDon and druidMarca then
+        buffEquivalences[druidDon] = druidMarca
+        buffEquivalences[druidMarca] = druidDon
+    end
+end
+
 -- Busca un buff por nombre y comprueba si tiene tiempo de duración suficiente (>= 25%)
 local function UnitHasBuff(unit, spellName)
+    if not buffEquivalences then
+        InitBuffEquivalences()
+    end
+    
+    local altName = buffEquivalences[spellName]
     local name, duration, expirationTime
+    
     if AuraUtil and AuraUtil.FindAuraByName then
         local bName, _, _, _, bDuration, bExpirationTime = AuraUtil.FindAuraByName(spellName, unit, "HELPFUL")
+        if not bName and altName then
+            bName, _, _, _, bDuration, bExpirationTime = AuraUtil.FindAuraByName(altName, unit, "HELPFUL")
+        end
         name = bName
         duration = bDuration
         expirationTime = bExpirationTime
     else
         -- Fallback para versiones más antiguas
+        local checkSpell = function(bName)
+            return bName == spellName or (altName and bName == altName)
+        end
         for i = 1, 40 do
             local bName, _, _, _, bDuration, bExpirationTime = UnitBuff(unit, i)
             if not bName then break end
-            if bName == spellName then
+            if checkSpell(bName) then
                 name = bName
                 duration = bDuration
                 expirationTime = bExpirationTime
