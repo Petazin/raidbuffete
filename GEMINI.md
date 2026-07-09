@@ -2,6 +2,18 @@
 
 Este archivo registra las decisiones arquitectónicas y el estado del proyecto generado por la IA en el addon RaidBuffet.
 
+## [08/07/2026] v1.7.5-prep - Corrección de Opciones de Blizzard y Falsas Alertas de Reactivos
+
+- **Corrección de Compatibilidad de Opciones de Blizzard (`UI/Options.lua` & `UI/Minimap.lua`)**:
+  - Se solventó el error de Lua `bad argument #1 to 'OpenSettingsPanel'` al hacer clic derecho en el botón del minimapa.
+  - La función `Settings.OpenToCategory` en clientes de WoW modernos requiere recibir el identificador numérico de categoría de ajustes (`categoryID`). Ahora el addon guarda el objeto `category` devuelto por `Settings.RegisterCanvasLayoutCategory` en la tabla del addon (`addonTable.settingsCategory`) durante la inicialización de opciones y utiliza su método `GetID()` de forma dinámica y segura al redirigir al panel.
+- **Periodo de Gracia de Reactivos en Carga (`Core/Core.lua` & `UI/Options.lua`)**:
+  - Se corrigieron los falsos positivos que alertaban de componentes en `0` al conectar o cambiar de zona.
+  - Esto era provocado porque la API `GetItemCount` devuelve temporalmente `0` al inicio de la carga del juego, antes de que el servidor termine de sincronizar las bolsas con el cliente.
+  - Se removió la comprobación directa en el evento `ADDON_LOADED` y se implementó un periodo de gracia asíncrono de **5 segundos** tras el evento `PLAYER_ENTERING_WORLD` (mediante `C_Timer.NewTimer`). Durante este periodo de gracia, se ignoran las comprobaciones de reactivos del inventario, y al expirar se realiza un escaneo de forma segura una vez que los datos de las bolsas ya están sincronizados en el cliente de WoW. El clic manual de checkboxes en el menú de opciones sigue forzando la comprobación instantáneamente sin esperas.
+- **Actualización de Versión Oficial (`RaidBuffet.toc`)**:
+  - Incrementada la versión del addon a **v1.7.5-prep** para el release en CurseForge.
+
 ## [08/07/2026] v1.7.4-prep - Período de Gracia en Alertas de Salvación a Tanques
 
 - **Periodo de Gracia para Alertas de Salvación (`Core/Scanner.lua`)**:

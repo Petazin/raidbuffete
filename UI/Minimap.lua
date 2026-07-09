@@ -41,8 +41,9 @@ minimapButton:SetScript("OnClick", function(self, button)
         end
     elseif button == "RightButton" then
         -- Abrir Opciones de Blizzard
-        if Settings and Settings.OpenToCategory then
-            Settings.OpenToCategory("RaidBuffet")
+        if Settings and Settings.OpenToCategory and addonTable.settingsCategory then
+            local categoryID = addonTable.settingsCategory.GetID and addonTable.settingsCategory:GetID() or addonTable.settingsCategory
+            Settings.OpenToCategory(categoryID)
         else
             InterfaceOptionsFrame_OpenToCategory("RaidBuffet")
             InterfaceOptionsFrame_OpenToCategory("RaidBuffet") -- Llamar 2 veces para un viejo bug de TBC/Wrath

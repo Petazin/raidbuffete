@@ -132,13 +132,20 @@ frame:SetScript("OnEvent", function(self, event, ...)
             if addonTable.Sync and addonTable.Sync.RequestSync then
                 addonTable.Sync:RequestSync()
             end
-            
-            addonTable.Core:CheckReagents()
         end
     elseif event == "PLAYER_ENTERING_WORLD" then
         UpdateMyOwnTalentsInCache()
         addonTable.Core:ScanAllGroupTalents()
-        addonTable.Core:CheckReagents()
+        
+        -- Período de gracia de 5 segundos tras pantalla de carga para evitar alertas falsas por sincronización incompleta de bolsas
+        isReagentsCheckReady = false
+        if addonTable.reagentsTimer then
+            addonTable.reagentsTimer:Cancel()
+        end
+        addonTable.reagentsTimer = C_Timer.NewTimer(5, function()
+            isReagentsCheckReady = true
+            addonTable.Core:CheckReagents()
+        end)
     elseif event == "BAG_UPDATE_DELAYED" then
         addonTable.Core:CheckReagents()
     elseif event == "GROUP_ROSTER_UPDATE" then
@@ -176,6 +183,7 @@ end)
 local lastWarnTime = 0       -- Cooldown para anuncio de chat de grupo (5 min)
 local lastLocalPrintTime = 0  -- Cooldown para print local en consola (10 seg)
 local capitalWarnTimer = nil
+local isReagentsCheckReady = false
 
 local capitals = {
     ["Shattrath City"] = true,
@@ -286,7 +294,8 @@ local function StartCapitalWarningTimer()
     end)
 end
 
-function addonTable.Core:CheckReagents()
+function addonTable.Core:CheckReagents(force)
+    if not isReagentsCheckReady and not force then return end
     local _, classFileName = UnitClass("player")
     local items = {}
     local mainR = addonTable.Constants.Reagents[classFileName]

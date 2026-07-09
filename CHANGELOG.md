@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.7.5-prep] - 2026-07-08
+
+### Fixed
+- **Falsas Alertas de Reactivos en Cero tras Carga (Bugfix)**:
+  - Se corrigió el problema donde el addon alertaba falsamente en el chat que el jugador se había quedado sin componentes (`Semilla de silexia: 0` y `Raíz de espina salvaje: 0`) a pesar de tenerlos físicamente en sus bolsas.
+  - Esto ocurría porque al iniciar sesión o salir de una pantalla de carga, el addon comprobaba el inventario inmediatamente mediante `ADDON_LOADED` o `PLAYER_ENTERING_WORLD` antes de que el servidor de WoW sincronizara y transmitiera los datos reales de las bolsas al cliente, haciendo que `GetItemCount` devolviera temporalmente `0`.
+  - Se implementó un periodo de gracia de 5 segundos tras conectar o cruzar pantallas de carga. Durante este tiempo las comprobaciones silenciosas de reactivos quedan suspendidas, y se ejecuta una comprobación segura una vez que expira este periodo para dar tiempo a la sincronización. Las comprobaciones manuales desde el panel de opciones siguen respondiendo al instante.
+- **Compatibilidad con Panel de Ajustes de WoW Moderno (Bugfix)**:
+  - Corregido el error de Lua `bad argument #1 to 'OpenSettingsPanel'` al hacer clic derecho en el botón del minimapa para abrir la configuración.
+  - La API de Blizzard `Settings.OpenToCategory` ahora requiere un ID numérico de categoría. Se guardó la categoría registrada en la inicialización y se usa su `GetID()` de forma dinámica y segura con un fallback de compatibilidad hacia atrás.
+
 ## [1.7.4-prep] - 2026-07-08
 
 ### Added

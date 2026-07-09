@@ -318,7 +318,7 @@ for i, id in ipairs(classReagents) do
     cb:SetScript("OnClick", function(self)
         if RaidBuffetDB and RaidBuffetDB.TrackedReagents then
             RaidBuffetDB.TrackedReagents[self.reagentID] = self:GetChecked()
-            addonTable.Core:CheckReagents() -- Ejecutar comprobación al instante al alternar
+            addonTable.Core:CheckReagents(true) -- Ejecutar comprobación al instante al alternar forzando
         end
     end)
     table.insert(reagentChecks, cb)
@@ -351,6 +351,7 @@ end)
 if Settings and Settings.RegisterCanvasLayoutCategory then
     local category, layout = Settings.RegisterCanvasLayoutCategory(OptionsPanel, OptionsPanel.name)
     Settings.RegisterAddOnCategory(category)
+    addonTable.settingsCategory = category
 elseif InterfaceOptions_AddCategory then
     InterfaceOptions_AddCategory(OptionsPanel)
 end
