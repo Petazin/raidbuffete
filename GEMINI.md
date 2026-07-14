@@ -2,6 +2,18 @@
 
 Este archivo registra las decisiones arquitectónicas y el estado del proyecto generado por la IA en el addon RaidBuffet.
 
+## [13/07/2026] v1.8.0 - Unificación de Sincronización y Permisos (Estado Completo)
+
+- **Migración a AceComm y AceSerializer (`Core/Sync.lua`)**:
+  - Incorporadas las librerías `AceComm-3.0` y `AceSerializer-3.0` de forma local al addon.
+  - El sistema de sincronización por red se rediseñó por completo para utilizar serialización del estado completo en un único canal en lugar del modelo delta nativo plano.
+  - Cualquier cambio en las asignaciones de buffs, especialidades de talentos manuales o delegado de control de grilla activa un push de estado completo.
+  - Los clientes ahora sincronizan su estado reemplazando su tabla local con la recibida del líder o delegado autorizado.
+- **Unificación de HasEditPermissions (`UI/Grid.lua` y `Core/Sync.lua`)**:
+  - Rediseñado el helper de permisos `HasEditPermissions` en la grilla visual de la UI para alinear su lógica matemáticamente con las validaciones de red, utilizando `GetRaidRosterInfo` de forma robusta e independiente de `UnitIsRaidOfficer` de Blizzard.
+- **Actualización de Versión Oficial (`RaidBuffet.toc`)**:
+  - Se incrementó la versión oficial a **v1.8.0** y se cargaron las librerías de Ace3 en las dependencias.
+
 ## [08/07/2026] v1.7.5-prep - Corrección de Opciones de Blizzard y Falsas Alertas de Reactivos
 
 - **Corrección de Compatibilidad de Opciones de Blizzard (`UI/Options.lua` & `UI/Minimap.lua`)**:

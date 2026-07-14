@@ -37,4 +37,10 @@
 [2026-07-08 23:18:20] git push origin main
 [2026-07-08 23:18:30] git tag -a v1.7.5-prep -m "Release v1.7.5-prep: Corrige OpenSettingsPanel y falsas alertas de reactivos"
 [2026-07-08 23:18:40] git push origin v1.7.5-prep
-
+[2026-07-13 18:14:00] Copy-Item -Path "d:\BLIZZARD\World of Warcraft\_anniversary_\Interface\AddOns\NoDebuffNoLoot\Libs\LibStub", "d:\BLIZZARD\World of Warcraft\_anniversary_\Interface\AddOns\NoDebuffNoLoot\Libs\CallbackHandler-1.0", "d:\BLIZZARD\World of Warcraft\_anniversary_\Interface\AddOns\NoDebuffNoLoot\Libs\AceComm-3.0", "d:\BLIZZARD\World of Warcraft\_anniversary_\Interface\AddOns\NoDebuffNoLoot\Libs\AceSerializer-3.0" -Destination "d:\BLIZZARD\World of Warcraft\_anniversary_\Interface\AddOns\RaidBuffet\Libs" -Recurse -Force
+[2026-07-13 18:21:00] New-Item -ItemType Directory -Path "d:\BLIZZARD\World of Warcraft\_anniversary_\Interface\AddOns\RaidBuffet\Libs\LibStub" -Force; Move-Item -Path "d:\BLIZZARD\World of Warcraft\_anniversary_\Interface\AddOns\RaidBuffet\Libs\LibStub.lua" -Destination "d:\BLIZZARD\World of Warcraft\_anniversary_\Interface\AddOns\RaidBuffet\Libs\LibStub\LibStub.lua" -Force
+[2026-07-14 02:43:00] git add .
+[2026-07-14 02:43:10] git commit -m "v1.8.0 - Sincronizacion por estado completo (AceComm) y unificacion de hasEditPermissions"
+[2026-07-14 02:43:20] git tag -a v1.8.0 -m "Release v1.8.0: Sincronizacion por estado completo (AceComm) y unificacion de hasEditPermissions"
+[2026-07-14 02:43:30] git push origin main
+[2026-07-14 02:43:40] git push origin v1.8.0

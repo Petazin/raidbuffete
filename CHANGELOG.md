@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.0] - 2026-07-13
+
+### Added
+- **Unificación de Permisos y Sincronización (Estado Completo)**:
+  - Migración completa del módulo de sincronización (`Sync.lua`) para utilizar `AceComm-3.0` y `AceSerializer-3.0`.
+  - Reemplazo de la transmisión de eventos "Delta" por un sistema de **Estado Completo (Full State)**. Ahora, cualquier cambio en las asignaciones o delegado se transmite enviando la base de datos completa de asignaciones, especialidades y delegado de forma compacta y robusta.
+  - Mayor robustez ante pérdidas de mensajes y micro-desconexiones en raids de 10 y 25 jugadores.
+
+### Changed
+- **Unificación de HasEditPermissions**:
+  - Limpieza de APIs y unificación del helper de comprobación de permisos visuales con el parser del receptor de red, garantizando simetría total de permisos en el grupo.
+
+---
+
 ## [1.7.5-prep] - 2026-07-08
 
 ### Fixed

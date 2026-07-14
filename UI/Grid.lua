@@ -395,9 +395,36 @@ Grid.rows = {}
 local function HasEditPermissions()
     if addonTable.TestModeActive then return true end
     if not IsInGroup() then return true end
-    if UnitIsGroupLeader("player") then return true end
-    if IsInRaid() and UnitIsRaidOfficer("player") then return true end
-    if addonTable.DelegateName and addonTable.DelegateName == UnitName("player") then return true end
+    
+    local myName = UnitName("player")
+    local delegate = addonTable.DelegateName or ""
+    
+    local cleanMyName = string.match(myName, "([^%-]+)")
+    local cleanDelegate = string.match(delegate, "([^%-]+)")
+    
+    if cleanDelegate ~= "" and cleanMyName == cleanDelegate then
+        return true
+    end
+    
+    if UnitIsGroupLeader("player") then
+        return true
+    end
+    
+    if IsInRaid() then
+        for i = 1, GetNumGroupMembers() do
+            local name, rank = GetRaidRosterInfo(i)
+            if name then
+                local cleanName = string.match(name, "([^%-]+)")
+                if cleanName == cleanMyName then
+                    if rank == 1 or rank == 2 then
+                        return true
+                    end
+                    break
+                end
+            end
+        end
+    end
+    
     return false
 end
 
