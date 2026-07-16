@@ -72,9 +72,18 @@ showHUDCheck:SetScript("OnClick", function(self)
     end
 end)
 
+local scanOnlyInInstanceCheck = CreateFrame("CheckButton", "RaidBuffetScanOnlyInInstanceCheck", OptionsPanel, "UICheckButtonTemplate")
+scanOnlyInInstanceCheck:SetPoint("TOPLEFT", showHUDCheck, "BOTTOMLEFT", 0, -5)
+_G[scanOnlyInInstanceCheck:GetName() .. "Text"]:SetText("Escanear talentos solo en Mazmorras/Raids")
+scanOnlyInInstanceCheck:SetScript("OnClick", function(self)
+    if RaidBuffetDB then
+        RaidBuffetDB.ScanOnlyInInstance = self:GetChecked()
+    end
+end)
+
 -- Slider para el intervalo de alerta local de reactivos (en minutos)
 local warnIntervalSlider = CreateFrame("Slider", "RaidBuffetWarnIntervalSlider", OptionsPanel, "OptionsSliderTemplate")
-warnIntervalSlider:SetPoint("TOPLEFT", showHUDCheck, "BOTTOMLEFT", 0, -35)
+warnIntervalSlider:SetPoint("TOPLEFT", scanOnlyInInstanceCheck, "BOTTOMLEFT", 0, -35)
 warnIntervalSlider:SetMinMaxValues(1, 30) -- De 1 a 30 minutos
 warnIntervalSlider:SetValueStep(1)
 warnIntervalSlider:SetObeyStepOnDrag(true)
@@ -333,6 +342,7 @@ OptionsPanel:SetScript("OnShow", function(self)
         announceReagentsCheck:SetChecked(RaidBuffetDB.AnnounceLowReagents or false)
         alertCapitalCheck:SetChecked(RaidBuffetDB.AlertInCapital or false)
         showHUDCheck:SetChecked(RaidBuffetDB.ShowFloatHUD ~= false)
+        scanOnlyInInstanceCheck:SetChecked(RaidBuffetDB.ScanOnlyInInstance or false)
         warnIntervalSlider:SetValue((RaidBuffetDB.ReagentWarnInterval or 300) / 60)
         
         -- Inicializar checkboxes de reactivos

@@ -64,6 +64,7 @@ local defaultDB = {
     AnnounceLowReagents = false,
     AlertInCapital = true,
     ShowFloatHUD = true,
+    ScanOnlyInInstance = false,
     TrackedReagents = {}
 }
 
@@ -417,6 +418,32 @@ local lastInspectTime = 0
 local inspectInterval = 1.5 -- Segundos de retraso entre peticiones para no saturar al cliente
 local isWaitingForInspect = false
 
+local function ResolveUnitToGroupUnit(unit)
+    if not unit or not UnitExists(unit) then return nil end
+    if UnitIsUnit(unit, "player") then return "player" end
+    
+    local guid = UnitGUID(unit)
+    if not guid then return nil end
+    
+    if IsInRaid() then
+        for i = 1, GetNumGroupMembers() do
+            local raidUnit = "raid" .. i
+            if UnitGUID(raidUnit) == guid then
+                return raidUnit
+            end
+        end
+    elseif IsInGroup() then
+        for i = 1, GetNumGroupMembers() - 1 do
+            local partyUnit = "party" .. i
+            if UnitGUID(partyUnit) == guid then
+                return partyUnit
+            end
+        end
+    end
+    
+    return nil
+end
+
 local function ProcessInspectQueue()
     local now = GetTime()
     if isWaitingForInspect and (now - lastInspectTime < 4) then
@@ -428,7 +455,7 @@ local function ProcessInspectQueue()
     if #inspectQueue == 0 then return end
     
     local unit = table.remove(inspectQueue, 1)
-    if UnitExists(unit) and CanInspect(unit) and UnitIsConnected(unit) then
+    if UnitExists(unit) and CanInspect(unit) and UnitIsConnected(unit) and CheckInteractDistance(unit, 1) then
         lastInspectTime = now
         isWaitingForInspect = true
         NotifyInspect(unit)
@@ -442,11 +469,26 @@ end)
 
 function addonTable.Core:QueueInspect(unit)
     if not unit or unit == "player" then return end
+    
+    -- Si la opción ScanOnlyInInstance está activa, comprobar si estamos en instancia (mazmorra/raid)
+    if RaidBuffetDB and RaidBuffetDB.ScanOnlyInInstance then
+        local inInstance, instanceType = IsInInstance()
+        local inDungeonOrRaid = inInstance and (instanceType == "party" or instanceType == "raid")
+        if not inDungeonOrRaid then return end
+    end
+    
+    -- Resolver unidades dinámicas (target/mouseover) a unidades fijas del grupo
+    local finalUnit = unit
+    if unit == "target" or unit == "mouseover" then
+        finalUnit = ResolveUnitToGroupUnit(unit)
+        if not finalUnit or finalUnit == "player" then return end
+    end
+    
     -- Evitar duplicados
     for _, queued in ipairs(inspectQueue) do
-        if queued == unit then return end
+        if queued == finalUnit then return end
     end
-    table.insert(inspectQueue, unit)
+    table.insert(inspectQueue, finalUnit)
 end
 
 function addonTable.Core:ScanAllGroupTalents()
@@ -545,4 +587,12 @@ function addonTable.Core:ProcessInspectResult(guid)
         addonTable.UI:UpdateGrid()
     end
 end
+
+-- Ticker periódico cada 5 segundos para verificar alertas de Salvación en tanques de forma independiente
+C_Timer.NewTicker(5, function()
+    if addonTable.Scanner and addonTable.Scanner.CheckTankSalvationAlerts then
+        addonTable.Scanner:CheckTankSalvationAlerts()
+    end
+end)
+
 

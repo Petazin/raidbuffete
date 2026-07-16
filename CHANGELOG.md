@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.8.1] - 2026-07-14
+
+### Added
+- **Opción de Escaneo Restringido**: Añadido checkbox "Escanear talentos solo en Mazmorras/Raids" (`ScanOnlyInInstance`) en el panel de opciones generales. Al activarse, evita que el addon realice inspecciones de grupo automáticas fuera de mazmorras y bandas para ahorrar recursos del sistema.
+
+### Fixed
+- **Prevención de Errores de Rango e Inspección**:
+  - Implementada la comprobación `CheckInteractDistance(unit, 1)` antes de llamar a `NotifyInspect(unit)`. Esto previene de forma definitiva los sonidos de error y los textos en pantalla de `"Fuera de alcance"` o `"unidad desconocida"` cuando los miembros de la banda están alejados o en otra zona.
+  - Implementada la función de **Resolución de Unidades Dinámicas**: el addon ahora resuelve unidades dinámicas como `"target"` o `"mouseover"` a unidades de grupo fijas (`"party1"`, `"raid5"`, etc.) en el momento de agregarlas a la cola de inspección asíncrona, eliminando de raíz las colisiones por cambios rápidos de cursor u objetivo del jugador.
+  - Solucionado el error de `"unidad desconocida"` al pasar el cursor (hover) sobre el botón de Auto-Cast flotante. Se añadieron validaciones defensivas de existencia (`UnitExists` y `UnitIsConnected`) en `UnitHasBuff` e `IsMainTank` de `Scanner.lua`, y se desacopló el escáner de Salvación de tanques (`CheckTankSalvationAlerts`) del flujo de actualización visual de la UI de Auto-Cast, moviéndolo a un temporizador de segundo plano de 5 segundos en `Core.lua`.
+
+---
+
 ## [1.8.0] - 2026-07-13
 
 ### Added

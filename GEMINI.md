@@ -2,6 +2,19 @@
 
 Este archivo registra las decisiones arquitectónicas y el estado del proyecto generado por la IA en el addon RaidBuffet.
 
+## [14/07/2026] v1.8.1 - Prevención de Error de Rango y Opción de Instancia
+
+- **Prevención de Error de Rango en Inspecciones (`Core/Core.lua`)**:
+  - Implementada la validación `CheckInteractDistance(unit, 1)` antes de llamar a `NotifyInspect(unit)` en la cola de inspección. Esto evita que WoW emita los molestos mensajes de error y sonidos `"Fuera de alcance"` o `"unidad desconocida"` cuando los miembros de la banda están en otra zona o alejados.
+  - Implementada la función de **Resolución de Unidades Dinámicas**: el addon resuelve unidades dinámicas como `"target"` o `"mouseover"` a unidades de grupo fijas (`"partyN"` o `"raidN"`) usando el GUID al encolarlas, eliminando de raíz las colisiones por cambios rápidos de cursor u objetivo del jugador.
+- **Opción de Escaneo Restringido (`UI/Options.lua` y `Core/Core.lua`)**:
+  - Añadido el checkbox "Escanear talentos solo en Mazmorras/Raids" (`ScanOnlyInInstance`) en el panel de opciones generales. Al activarse, evita que el addon realice inspecciones de grupo automáticas fuera de mazmorras y bandas para ahorrar recursos del sistema.
+- **Bugfix de Autocast Hover (`Core/Scanner.lua` y `Core/Core.lua`)**:
+  - Solucionado el error de `"unidad desconocida"` que ocurría al pasar el cursor sobre el Auto-Cast flotante. Se implementaron comprobaciones de existencia de unidad (`UnitExists` y `UnitIsConnected`) en `UnitHasBuff` e `IsMainTank` para evitar llamadas a APIs nativas de Blizzard con unidades que no están cargadas o están offline.
+  - Se eliminó la llamada a `CheckTankSalvationAlerts()` de `GetNextBuffTarget()`, trasladando la alerta de Salvación en tanques a un temporizador recurrente independiente de 5 segundos en `Core.lua`, previniendo que se ejecute en los hilos de renderizado visual de la UI.
+- **Actualización de Versión Oficial (`RaidBuffet.toc`)**:
+  - Incrementada la versión oficial del addon a **v1.8.1** para CurseForge.
+
 ## [13/07/2026] v1.8.0 - Unificación de Sincronización y Permisos (Estado Completo)
 
 - **Migración a AceComm y AceSerializer (`Core/Sync.lua`)**:

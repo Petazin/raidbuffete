@@ -44,3 +44,10 @@
 [2026-07-14 02:43:20] git tag -a v1.8.0 -m "Release v1.8.0: Sincronizacion por estado completo (AceComm) y unificacion de hasEditPermissions"
 [2026-07-14 02:43:30] git push origin main
 [2026-07-14 02:43:40] git push origin v1.8.0
+
+[2026-07-16 04:10:00] Actividad v1.8.1:
+- Comprobación de git status de RaidBuffet y otros addons.
+- Modificada la cola de inspección en Core/Core.lua para usar CheckInteractDistance y la resolución asíncrona de unidades dinámicas (ResolveUnitToGroupUnit).
+- Añadido el checkbox de restricción de mazmorras en UI/Options.lua y su lógica en Core/Core.lua.
+- Corregido error de "unidad desconocida" en hover del autocast flotante agregando UnitExists y UnitIsConnected en Scanner.lua y moviendo CheckTankSalvationAlerts a un timer asíncrono de 5s en Core/Core.lua.
+- Actualizados CHANGELOG.md, GEMINI.md y RaidBuffet.toc.
