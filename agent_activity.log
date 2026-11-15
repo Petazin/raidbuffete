@@ -63,8 +63,6 @@
 - División del reporte de hitos y almacenamiento en la subcarpeta del proyecto correspondientes (raidbuffet).
 - Comando ejecutado: Remove-Item -Path "C:\Users\Petazo\Desktop\Wiki_LLM\fuentes\2026-07-16-asimilacion-y-creacion-de-notas.md", "C:\Users\Petazo\Desktop\Wiki_LLM\fuentes\2026-07-16-depuracion-errores-unidad-desconocida-rango-wow.md" -Force
 
-[2026-11-15 04:52:00] Protocolo de Cierre y Archivado de Proyecto (v1.9.0):
-- Actualizados RaidBuffet.toc (v1.9.0), GEMINI.md y CHANGELOG.md declarando Estado del Proyecto: Congelado / Archivado.
-- Generación de reporte final de cierre YYYY-MM-DD-cierre-y-archivado-proyecto.md en Wiki_LLM/fuentes/proyectos/raidbuffet.
-- Sincronización de documentación hacia la Wiki.
-- Commit de cierre y preparación de push a remoto.
+[2026-11-15 04:52:00] Release v1.9.0 y Reactivación de Proyecto:
+- Release v1.9.0 completada: Motor Invisible V2 con sincronización P2P por AceComm, cola circular FIFO y protección en combate/inspección.
+- Revertidos metadatos de archivado/congelamiento; el addon y proyecto continúan plenamente vigentes dentro de Antigravity (proyecto 'Addons Wow').

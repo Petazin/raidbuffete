@@ -1,15 +1,6 @@
 # Registro de Actividad de Gemini - RaidBuffet
 
-> **Estado del Proyecto: Congelado / Archivado**  
-> **Fecha de Cierre:** 15 de noviembre de 2026  
-> **Última Versión Estable:** v1.9.0  
-> **Motivo:** Ciclo de desarrollo completado y estabilizado. El addon se encuentra totalmente funcional para WoW TBC Classic Anniversary con el Motor de Inspección y Sincronización Invisible V2 (Zero-Noise Engine) y sincronización P2P silenciosa.
-
 Este archivo registra las decisiones arquitectónicas y el estado del proyecto generado por la IA en el addon RaidBuffet.
-
-## [15/11/2026] Cierre y Archivado del Proyecto
-- **Congelamiento de Código**: El proyecto entra en fase de archivo/mantenimiento pasivo.
-- **Auditoría Final**: Árbol de trabajo auditado, versión 1.9.0 finalizada y sincronizada con la base de conocimiento de la Wiki LLM.
 
 ## [28/08/2026] v1.9.0 - Motor de Inspección y Sincronización Invisible V2 (Zero-Noise Engine)
 
