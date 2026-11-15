@@ -96,19 +96,47 @@ function Sync:OnCommReceived(prefix, message, distribution, sender)
         local class = parts[2]
         local existing = addonTable.TalentsCache[cleanSender]
         if not existing or existing.source ~= "MANUAL" then
+            local t = {
+                imprWisdom = tonumber(parts[3]) or 0,
+                imprMight = tonumber(parts[4]) or 0,
+                imprSant = (tonumber(parts[5]) or 0) > 0 and 1 or 0,
+                imprMark = tonumber(parts[6]) or 0,
+                imprFort = tonumber(parts[7]) or 0,
+                imprSpirit = tonumber(parts[8]) or 0
+            }
+
+            local spec = "NONE"
+            if class == "PALADIN" then
+                if t.imprSant > 0 then spec = "PROT"
+                elseif t.imprWisdom > 0 then spec = "HOLY"
+                elseif t.imprMight > 0 then spec = "RETRI"
+                end
+            elseif class == "DRUID" then
+                if t.imprMark > 0 then spec = "RESTO" end
+            elseif class == "PRIEST" then
+                if t.imprSpirit > 0 then spec = "DISC"
+                elseif t.imprFort > 0 then spec = "HOLY"
+                end
+            end
+
             addonTable.TalentsCache[cleanSender] = {
                 class = class,
-                spec = "NONE",
+                spec = spec,
                 talents = {
-                    improvedWisdom = tonumber(parts[3]) or 0,
-                    improvedMight = tonumber(parts[4]) or 0,
-                    improvedSantuario = (tonumber(parts[5]) or 0) > 0,
-                    improvedMark = tonumber(parts[6]) or 0,
-                    improvedFort = tonumber(parts[7]) or 0,
-                    improvedSpirit = tonumber(parts[8]) or 0
+                    improvedWisdom = t.imprWisdom,
+                    improvedMight = t.imprMight,
+                    improvedSantuario = t.imprSant > 0,
+                    improvedMark = t.imprMark,
+                    improvedFort = t.imprFort,
+                    improvedSpirit = t.imprSpirit
                 },
                 source = "P2P"
             }
+
+            if addonTable.Core and addonTable.Core.RemoveFromInspectQueue then
+                addonTable.Core:RemoveFromInspectQueue(cleanSender)
+            end
+
             if addonTable.UI and addonTable.UI.UpdateGrid then
                 addonTable.UI:UpdateGrid()
             end

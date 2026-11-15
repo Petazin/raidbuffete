@@ -44,14 +44,6 @@ addonTable.Assignments = {
 local frame = CreateFrame("Frame")
 addonTable.Core = frame
 
-frame:RegisterEvent("ADDON_LOADED")
-frame:RegisterEvent("BAG_UPDATE_DELAYED")
-frame:RegisterEvent("GROUP_ROSTER_UPDATE")
-frame:RegisterEvent("INSPECT_READY")
-frame:RegisterEvent("PLAYER_TARGET_CHANGED")
-frame:RegisterEvent("UPDATE_MOUSEOVER_UNIT")
-frame:RegisterEvent("PLAYER_UPDATE_RESTING")
-
 -- Configuración por defecto
 local defaultDB = {
     ReagentThreshold = 20,
@@ -96,89 +88,7 @@ local function UpdateMyOwnTalentsInCache()
     end
 end
 
-frame:SetScript("OnEvent", function(self, event, ...)
-    if event == "ADDON_LOADED" then
-        local name = ...
-        if name == addonName then
-            -- Inicializar SavedVariables
-            RaidBuffetDB = RaidBuffetDB or defaultDB
-            
-            -- Aplicar variables por defecto que falten
-            for k, v in pairs(defaultDB) do
-                if RaidBuffetDB[k] == nil then
-                    RaidBuffetDB[k] = v
-                end
-            end
-            
-            if RaidBuffetDB.TrackedReagents == nil then
-                RaidBuffetDB.TrackedReagents = {}
-            end
-            
-            -- Cargar caché local de talentos
-            addonTable.TalentsCache = RaidBuffetDB.TalentsCache
-            
-            -- Guardar nuestros propios talentos locales en la caché de inmediato
-            UpdateMyOwnTalentsInCache()
-            
-            local t = addonTable.Core:GetMyTalents()
-            print(string.format("|cff00ff00RaidBuffet v1.6.3 Loaded!|r Talentos detectados: Wisdom=%d, Might=%d, Sant=%d, Mark=%d, Fort=%d, Spirit=%d", 
-                t.imprWisdom, t.imprMight, t.imprSant, t.imprMark, t.imprFort, t.imprSpirit))
-            
-            -- Registrar prefijo de red para el canal P2P de Addons (TBC Classic)
-            if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then
-                C_ChatInfo.RegisterAddonMessagePrefix("RaidBuffet")
-            end
-            
-            -- Pedir Sync al líder si acabamos de loguear y estamos en grupo
-            if addonTable.Sync and addonTable.Sync.RequestSync then
-                addonTable.Sync:RequestSync()
-            end
-        end
-    elseif event == "PLAYER_ENTERING_WORLD" then
-        UpdateMyOwnTalentsInCache()
-        addonTable.Core:ScanAllGroupTalents()
-        
-        -- Período de gracia de 5 segundos tras pantalla de carga para evitar alertas falsas por sincronización incompleta de bolsas
-        isReagentsCheckReady = false
-        if addonTable.reagentsTimer then
-            addonTable.reagentsTimer:Cancel()
-        end
-        addonTable.reagentsTimer = C_Timer.NewTimer(5, function()
-            isReagentsCheckReady = true
-            addonTable.Core:CheckReagents()
-        end)
-    elseif event == "BAG_UPDATE_DELAYED" then
-        addonTable.Core:CheckReagents()
-    elseif event == "GROUP_ROSTER_UPDATE" then
-        -- Asegurar que nuestros talentos estén listos
-        UpdateMyOwnTalentsInCache()
-        -- Escanear la banda gradualmente
-        addonTable.Core:ScanAllGroupTalents()
-        -- Refrescar la UI cuando alguien entra o sale de la banda
-        if addonTable.UI and addonTable.UI.UpdateGrid then
-            addonTable.UI:UpdateGrid()
-        end
-    elseif event == "INSPECT_READY" then
-        local guid = ...
-        addonTable.Core:ProcessInspectResult(guid)
-    elseif event == "PLAYER_TARGET_CHANGED" then
-        if UnitExists("target") and not UnitIsUnit("target", "player") and UnitInParty("target") then
-            local _, class = UnitClass("target")
-            if class == "PALADIN" or class == "PRIEST" or class == "DRUID" then
-                addonTable.Core:QueueInspect("target")
-            end
-        end
-    elseif event == "UPDATE_MOUSEOVER_UNIT" then
-        if UnitExists("mouseover") and not UnitIsUnit("mouseover", "player") and UnitInParty("mouseover") then
-            local _, class = UnitClass("mouseover")
-            if class == "PALADIN" or class == "PRIEST" or class == "DRUID" then
-                addonTable.Core:QueueInspect("mouseover")
-            end
-        end
-    elseif event == "PLAYER_UPDATE_RESTING" then
-        addonTable.Core:CheckReagents()
-    end
-end)
+
 
 -- Sistema Inteligente de Alertas de Componentes (Reagents) y Druida (Semillas)
 local lastWarnTime = 0       -- Cooldown para anuncio de chat de grupo (5 min)
@@ -411,12 +321,15 @@ function addonTable.Core:GetMyTalents()
 end
 
 -- ============================================================================
--- COLA ASÍNCRONA DE INSPECCIÓN AUTOMÁTICA
+-- COLA ASÍNCRONA DE INSPECCIÓN AUTOMÁTICA (V2: Zero-Noise, Non-Dropping, Watchdog)
 -- ============================================================================
 local inspectQueue = {}
+local inspectSuccess = {}
 local lastInspectTime = 0
-local inspectInterval = 1.5 -- Segundos de retraso entre peticiones para no saturar al cliente
+local INSPECT_INTERVAL = 2.0 -- Segundos de retraso entre peticiones para no saturar al cliente
+local WATCHDOG_TIMEOUT = 3.5 -- Tiempo máximo de espera para INSPECT_READY
 local isWaitingForInspect = false
+local watchdogTimer = nil
 
 local function ResolveUnitToGroupUnit(unit)
     if not unit or not UnitExists(unit) then return nil end
@@ -444,22 +357,87 @@ local function ResolveUnitToGroupUnit(unit)
     return nil
 end
 
+function addonTable.Core:RemoveFromInspectQueue(name)
+    if not name then return end
+    local cleanName = string.match(name, "([^%-]+)")
+    for i = #inspectQueue, 1, -1 do
+        local u = inspectQueue[i]
+        if u and UnitExists(u) then
+            local uName = UnitName(u)
+            if uName and string.match(uName, "([^%-]+)") == cleanName then
+                table.remove(inspectQueue, i)
+            end
+        end
+    end
+end
+
 local function ProcessInspectQueue()
+    -- 1. Pausa absoluta en combate o si el usuario tiene abierta la ventana de inspeccionar
+    if InCombatLockdown() or (InspectFrame and InspectFrame:IsShown()) then
+        return
+    end
+
     local now = GetTime()
-    if isWaitingForInspect and (now - lastInspectTime < 4) then
-        return -- Esperar a que responda o expire el timeout de 4 segundos
+    
+    -- 2. Manejo de timeout de espera (si el servidor no respondió tras WATCHDOG_TIMEOUT segundos)
+    if isWaitingForInspect then
+        if (now - lastInspectTime) >= WATCHDOG_TIMEOUT then
+            isWaitingForInspect = false
+            if watchdogTimer then
+                watchdogTimer:Cancel()
+                watchdogTimer = nil
+            end
+        else
+            return -- Esperando respuesta del servidor
+        end
     end
     
-    if now - lastInspectTime < inspectInterval then return end
+    -- 3. Respetar el throttling de peticiones
+    if (now - lastInspectTime) < INSPECT_INTERVAL then return end
     
     if #inspectQueue == 0 then return end
     
-    local unit = table.remove(inspectQueue, 1)
-    if UnitExists(unit) and CanInspect(unit) and UnitIsConnected(unit) and CheckInteractDistance(unit, 1) then
-        lastInspectTime = now
-        isWaitingForInspect = true
-        NotifyInspect(unit)
+    local unit = inspectQueue[1]
+    if not unit or not UnitExists(unit) or not CanInspect(unit) or not UnitIsConnected(unit) then
+        table.remove(inspectQueue, 1) -- Quitar si es inválido o desconectado
+        return
     end
+    
+    -- 4. Verificación de rango físico (~28 yardas nativas con CheckInteractDistance)
+    local isRange1 = CheckInteractDistance(unit, 1)
+    
+    if not isRange1 then
+        -- Si está fuera de rango, ROTAR AL FINAL DE LA COLA para reintentar cuando se acerque (Non-dropping)
+        table.insert(inspectQueue, table.remove(inspectQueue, 1))
+        return
+    end
+    
+    -- 5. Si está en rango, proceder a inspeccionar de forma 100% silenciosa
+    table.remove(inspectQueue, 1)
+    lastInspectTime = now
+    isWaitingForInspect = true
+    
+    -- Desregistrar momentáneamente UIErrorsFrame para suprimir cualquier mensaje visual residual
+    local errFrame = UIErrorsFrame
+    if errFrame then
+        errFrame:UnregisterEvent("UI_ERROR_MESSAGE")
+    end
+    
+    NotifyInspect(unit)
+    
+    -- Restaurar UIErrorsFrame tras 0.5s
+    C_Timer.After(0.5, function()
+        if errFrame then
+            errFrame:RegisterEvent("UI_ERROR_MESSAGE")
+        end
+    end)
+
+    -- Iniciar Watchdog Timer de seguridad
+    if watchdogTimer then watchdogTimer:Cancel() end
+    watchdogTimer = C_Timer.NewTimer(WATCHDOG_TIMEOUT, function()
+        isWaitingForInspect = false
+        watchdogTimer = nil
+    end)
 end
 
 local tickerFrame = CreateFrame("Frame")
@@ -467,7 +445,8 @@ tickerFrame:SetScript("OnUpdate", function(self, elapsed)
     ProcessInspectQueue()
 end)
 
-function addonTable.Core:QueueInspect(unit)
+function addonTable.Core:QueueInspect(unit, isReadyCheck)
+    if not RaidBuffetDB then return end
     if not unit or unit == "player" then return end
     
     -- Si la opción ScanOnlyInInstance está activa, comprobar si estamos en instancia (mazmorra/raid)
@@ -475,13 +454,24 @@ function addonTable.Core:QueueInspect(unit)
         local inInstance, instanceType = IsInInstance()
         local inDungeonOrRaid = inInstance and (instanceType == "party" or instanceType == "raid")
         if not inDungeonOrRaid then return end
+        if not isReadyCheck then return end
     end
     
-    -- Resolver unidades dinámicas (target/mouseover) a unidades fijas del grupo
-    local finalUnit = unit
-    if unit == "target" or unit == "mouseover" then
-        finalUnit = ResolveUnitToGroupUnit(unit)
-        if not finalUnit or finalUnit == "player" then return end
+    -- Resolver unidades dinámicas a unidades fijas del grupo
+    local finalUnit = ResolveUnitToGroupUnit(unit)
+    if not finalUnit or finalUnit == "player" then return end
+    
+    local guid = UnitGUID(finalUnit)
+    local name = UnitName(finalUnit)
+    if name then name = string.match(name, "([^%-]+)") end
+
+    -- Si ya fue resuelto previamente en esta sesión o tiene source P2P/MANUAL/AUTO, no encolar
+    if guid and inspectSuccess[guid] then return end
+    if name and addonTable.TalentsCache and addonTable.TalentsCache[name] then
+        local src = addonTable.TalentsCache[name].source
+        if src == "P2P" or src == "AUTO" or src == "MANUAL" then
+            return
+        end
     end
     
     -- Evitar duplicados
@@ -491,7 +481,8 @@ function addonTable.Core:QueueInspect(unit)
     table.insert(inspectQueue, finalUnit)
 end
 
-function addonTable.Core:ScanAllGroupTalents()
+function addonTable.Core:ScanAllGroupTalents(isReadyCheck)
+    if not RaidBuffetDB then return end
     if not IsInGroup() then return end
     
     local prefix = IsInRaid() and "raid" or "party"
@@ -505,7 +496,7 @@ function addonTable.Core:ScanAllGroupTalents()
             local _, class = UnitClass(unit)
             if class == "PALADIN" or class == "PRIEST" or class == "DRUID" then
                 if CanInspect(unit) then
-                    addonTable.Core:QueueInspect(unit)
+                    addonTable.Core:QueueInspect(unit, isReadyCheck)
                 end
             end
         end
@@ -514,7 +505,13 @@ end
 
 function addonTable.Core:ProcessInspectResult(guid)
     isWaitingForInspect = false -- Desbloquear cola
+    if watchdogTimer then
+        watchdogTimer:Cancel()
+        watchdogTimer = nil
+    end
     
+    if not guid then return end
+
     -- Encontrar la unidad correspondiente
     local unit = nil
     if IsInRaid() then
@@ -537,9 +534,12 @@ function addonTable.Core:ProcessInspectResult(guid)
     local _, class = UnitClass(unit)
     if class ~= "PALADIN" and class ~= "PRIEST" and class ~= "DRUID" then return end
     
-    -- Ignorar si el líder ya forzó manualmente su especialidad
+    -- Ignorar si el líder ya forzó manualmente su especialidad o si vino por P2P
     local existing = addonTable.TalentsCache[name]
-    if existing and existing.source == "MANUAL" then return end
+    if existing and (existing.source == "MANUAL" or existing.source == "P2P") then 
+        inspectSuccess[guid] = true
+        return 
+    end
     
     -- Leer talentos de la otra persona con isInspect = true
     local t = {
@@ -582,11 +582,123 @@ function addonTable.Core:ProcessInspectResult(guid)
         source = "AUTO"
     }
     
+    inspectSuccess[guid] = true
+
     -- Refrescar la UI
     if addonTable.UI and addonTable.UI.UpdateGrid then
         addonTable.UI:UpdateGrid()
     end
 end
+
+-- ============================================================================
+-- REGISTRO DE EVENTOS Y PROCESAMIENTO (al final del archivo para inicialización segura)
+-- ============================================================================
+frame:SetScript("OnEvent", function(self, event, ...)
+    if event == "ADDON_LOADED" then
+        local name = ...
+        if name == addonName then
+            -- Inicializar SavedVariables
+            RaidBuffetDB = RaidBuffetDB or defaultDB
+            
+            -- Aplicar variables por defecto que falten
+            for k, v in pairs(defaultDB) do
+                if RaidBuffetDB[k] == nil then
+                    RaidBuffetDB[k] = v
+                end
+            end
+            
+            if RaidBuffetDB.TrackedReagents == nil then
+                RaidBuffetDB.TrackedReagents = {}
+            end
+            
+            -- Cargar caché local de talentos
+            addonTable.TalentsCache = RaidBuffetDB.TalentsCache
+            
+            -- Guardar nuestros propios talentos locales en la caché de inmediato
+            UpdateMyOwnTalentsInCache()
+            
+            -- Registrar prefijo de red para el canal P2P de Addons (TBC Classic)
+            if C_ChatInfo and C_ChatInfo.RegisterAddonMessagePrefix then
+                C_ChatInfo.RegisterAddonMessagePrefix("RaidBuffet")
+            end
+            
+            -- Pedir Sync al líder si acabamos de loguear y estamos en grupo
+            if addonTable.Sync and addonTable.Sync.RequestSync then
+                addonTable.Sync:RequestSync()
+            end
+        end
+    elseif event == "PLAYER_ENTERING_WORLD" then
+        UpdateMyOwnTalentsInCache()
+        addonTable.Core:ScanAllGroupTalents()
+        if addonTable.Sync and addonTable.Sync.SendMyTalents then
+            addonTable.Sync:SendMyTalents()
+        end
+        
+        -- Período de gracia de 5 segundos tras pantalla de carga para evitar alertas falsas por sincronización incompleta de bolsas
+        isReagentsCheckReady = false
+        if addonTable.reagentsTimer then
+            addonTable.reagentsTimer:Cancel()
+        end
+        addonTable.reagentsTimer = C_Timer.NewTimer(5, function()
+            isReagentsCheckReady = true
+            addonTable.Core:CheckReagents()
+        end)
+    elseif event == "BAG_UPDATE_DELAYED" then
+        addonTable.Core:CheckReagents()
+    elseif event == "GROUP_ROSTER_UPDATE" then
+        -- Asegurar que nuestros talentos estén listos
+        UpdateMyOwnTalentsInCache()
+        if addonTable.Sync and addonTable.Sync.SendMyTalents then
+            addonTable.Sync:SendMyTalents()
+        end
+        -- Escanear la banda gradualmente
+        addonTable.Core:ScanAllGroupTalents()
+        -- Refrescar la UI cuando alguien entra o sale de la banda
+        if addonTable.UI and addonTable.UI.UpdateGrid then
+            addonTable.UI:UpdateGrid()
+        end
+    elseif event == "INSPECT_READY" then
+        local guid = ...
+        addonTable.Core:ProcessInspectResult(guid)
+    elseif event == "ENCOUNTER_END" then
+        addonTable.Core:ScanAllGroupTalents(false)
+    elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
+        local unit, _, spellId = ...
+        -- Detectar cambio de talentos o especialización (63644, 63645)
+        if spellId == 63644 or spellId == 63645 then
+            if unit == "player" then
+                UpdateMyOwnTalentsInCache()
+                if addonTable.Sync and addonTable.Sync.SendMyTalents then
+                    addonTable.Sync:SendMyTalents()
+                end
+            else
+                local name = UnitName(unit)
+                local guid = UnitGUID(unit)
+                if name then 
+                    name = string.match(name, "([^%-]+)")
+                    if addonTable.TalentsCache and addonTable.TalentsCache[name] and addonTable.TalentsCache[name].source ~= "MANUAL" then
+                        addonTable.TalentsCache[name] = nil
+                    end
+                end
+                if guid then inspectSuccess[guid] = nil end
+                addonTable.Core:QueueInspect(unit)
+            end
+        end
+    elseif event == "PLAYER_UPDATE_RESTING" then
+        addonTable.Core:CheckReagents()
+    elseif event == "READY_CHECK" then
+        addonTable.Core:ScanAllGroupTalents(true)
+    end
+end)
+
+frame:RegisterEvent("ADDON_LOADED")
+frame:RegisterEvent("BAG_UPDATE_DELAYED")
+frame:RegisterEvent("GROUP_ROSTER_UPDATE")
+frame:RegisterEvent("INSPECT_READY")
+frame:RegisterEvent("PLAYER_UPDATE_RESTING")
+frame:RegisterEvent("READY_CHECK")
+frame:RegisterEvent("ENCOUNTER_END")
+frame:RegisterEvent("UNIT_SPELLCAST_SUCCEEDED")
 
 -- Ticker periódico cada 5 segundos para verificar alertas de Salvación en tanques de forma independiente
 C_Timer.NewTicker(5, function()

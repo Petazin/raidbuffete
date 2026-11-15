@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.9.0] - 2026-08-28 (Archivado: 2026-11-15)
+
+### Status
+- **Estado del Proyecto**: Congelado / Archivado. Ciclo de desarrollo completado satisfactoriamente.
+
+### Added - v1.9.0
+- **Motor de Inspección y Sincronización Invisible V2 (Zero-Noise Engine)**:
+  - **Sincronización P2P Avanzada (`Core/Sync.lua`)**: Intercambio de talentos vía canal de red addon que remueve instantáneamente al jugador de la cola física, eliminando el 100% de llamadas a `NotifyInspect` entre usuarios de RaidBuffet.
+  - **Cola Circular No Bloqueante (Non-Dropping FIFO)**: Miembros fuera de alcance (~28y) se reencolan al final para reintento automático al acercarse.
+  - **Watchdog Timer (3.5s)**: Recuperación y desbloqueo automático de cola ante faltas de respuesta `INSPECT_READY` del servidor.
+  - **Protección Total en Combate e Inspección**: Pausa inmediata si `InCombatLockdown()` o `InspectFrame:IsShown()`.
+  - **Limpieza de Ruido y Logs**: Eliminación de impresiones residuales en chat y silenciado total de avisos de rango e interfaz durante inspecciones.
+
+---
+
 ## [1.8.1] - 2026-07-14
 
 ### Added

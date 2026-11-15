@@ -51,3 +51,20 @@
 - Añadido el checkbox de restricción de mazmorras en UI/Options.lua y su lógica en Core/Core.lua.
 - Corregido error de "unidad desconocida" en hover del autocast flotante agregando UnitExists y UnitIsConnected en Scanner.lua y moviendo CheckTankSalvationAlerts a un timer asíncrono de 5s en Core/Core.lua.
 - Actualizados CHANGELOG.md, GEMINI.md y RaidBuffet.toc.
+
+[2026-07-16 04:20:00] Comandos ejecutados para release v1.8.1:
+- git add .
+- git commit -m "release: v1.8.1 - Control de rango, resolucion de unidades, restriccion de instancia y solucion a unidad desconocida en hover de autocast"
+- git tag v1.8.1
+- git push origin main
+- git push origin v1.8.1
+
+[2026-07-16 05:15:00] Actividad Wiki:
+- División del reporte de hitos y almacenamiento en la subcarpeta del proyecto correspondientes (raidbuffet).
+- Comando ejecutado: Remove-Item -Path "C:\Users\Petazo\Desktop\Wiki_LLM\fuentes\2026-07-16-asimilacion-y-creacion-de-notas.md", "C:\Users\Petazo\Desktop\Wiki_LLM\fuentes\2026-07-16-depuracion-errores-unidad-desconocida-rango-wow.md" -Force
+
+[2026-11-15 04:52:00] Protocolo de Cierre y Archivado de Proyecto (v1.9.0):
+- Actualizados RaidBuffet.toc (v1.9.0), GEMINI.md y CHANGELOG.md declarando Estado del Proyecto: Congelado / Archivado.
+- Generación de reporte final de cierre YYYY-MM-DD-cierre-y-archivado-proyecto.md en Wiki_LLM/fuentes/proyectos/raidbuffet.
+- Sincronización de documentación hacia la Wiki.
+- Commit de cierre y preparación de push a remoto.

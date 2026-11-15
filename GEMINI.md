@@ -1,6 +1,51 @@
 # Registro de Actividad de Gemini - RaidBuffet
 
+> **Estado del Proyecto: Congelado / Archivado**  
+> **Fecha de Cierre:** 15 de noviembre de 2026  
+> **Última Versión Estable:** v1.9.0  
+> **Motivo:** Ciclo de desarrollo completado y estabilizado. El addon se encuentra totalmente funcional para WoW TBC Classic Anniversary con el Motor de Inspección y Sincronización Invisible V2 (Zero-Noise Engine) y sincronización P2P silenciosa.
+
 Este archivo registra las decisiones arquitectónicas y el estado del proyecto generado por la IA en el addon RaidBuffet.
+
+## [15/11/2026] Cierre y Archivado del Proyecto
+- **Congelamiento de Código**: El proyecto entra en fase de archivo/mantenimiento pasivo.
+- **Auditoría Final**: Árbol de trabajo auditado, versión 1.9.0 finalizada y sincronizada con la base de conocimiento de la Wiki LLM.
+
+## [28/08/2026] v1.9.0 - Motor de Inspección y Sincronización Invisible V2 (Zero-Noise Engine)
+
+- **Optimización de Cola y Resiliencia (`Core/Core.lua`)**:
+  - **Cola Circular No Bloqueante (Non-Dropping FIFO)**: Los jugadores fuera de rango (~28y con `CheckInteractDistance(unit, 1)`) se rotan al final de la cola para reintento automático cuando se acerquen en lugar de descartarse.
+  - **Watchdog Timer (3.5s)**: Desbloqueo automático de la cola si el servidor no responde con `INSPECT_READY`.
+  - **Protección Total en Combate e Inspección**: Pausa absoluta de inspecciones si `InCombatLockdown()` o si `InspectFrame:IsShown()`.
+  - **Limpieza de Eventos Agresivos**: Eliminado el encolado indiscriminado en `UPDATE_MOUSEOVER_UNIT` y `PLAYER_TARGET_CHANGED`. Escaneo reactivo ante `ROSTER_UPDATE`, `READY_CHECK`, `ENCOUNTER_END` y `UNIT_SPELLCAST_SUCCEEDED` (cambio de spec / dual spec).
+  - **Limpieza de Chat y Supresión Total de Ruido**: Eliminados todos los logs de depuración del chat (`DEFAULT_CHAT_FRAME:AddMessage`) y supresión garantizada de mensajes de error de interfaz sin alterar CVars globales permanentes.
+- **Sincronización P2P Avanzada (`Core/Sync.lua`)**:
+  - Al recibir un paquete `TALENTS:...` de otro usuario con RaidBuffet, se extrae la especialidad y se remueve al jugador de inmediato de la cola de inspección física (`RemoveFromInspectQueue`), eliminando el 100% de llamadas a `NotifyInspect` entre usuarios del addon.
+
+## [06/08/2026] v1.8.5 - Log de Depuración de Rango e Inspección Asíncrona Silenciada
+
+- **Registro de rango y silenciador asíncrono (`Core/Core.lua`)**:
+  - Modificado `ProcessInspectQueue` para evaluar el rango e imprimir el log de depuración antes de descartar la unidad de la cola de inspección, permitiendo ver a los personajes no en rango con `¿En rango?: NO` en color rojo.
+  - Implementado retraso de 1.0 segundo con `C_Timer.After` para restaurar `Sound_EnableSFX` y `UIErrorsFrame`, garantizando que la respuesta de error asíncrona del servidor por personaje fuera de rango se procese en silencio absoluto.
+
+## [04/08/2026] v1.8.4 - Silenciador de Inspección de Talentos y Protección en Carga
+
+- **Mitigación de alertas audibles y visuales (`Core/Core.lua`)**:
+  - Implementado silenciador temporal de los CVars de sonido (`Sound_EnableSFX`) y desactivación temporal de `UIErrorsFrame` durante la llamada a `NotifyInspect` en `ProcessInspectQueue()`. Esto elimina de forma definitiva los molestos sonidos de error "Está demasiado lejos" y las alertas visuales en pantalla de "unidad desconocida" cuando un miembro del grupo se aleja o desconecta.
+  - Añadidas guardas de seguridad `if not RaidBuffetDB then return end` al inicio de `QueueInspect` y `ScanAllGroupTalents` para evitar que se ejecuten/encolen inspecciones prematuras durante la pantalla de carga, momento en el que `GROUP_ROSTER_UPDATE` se dispara antes de que `ADDON_LOADED` inicialice las SavedVariables, lo que provocaba que se saltaran los filtros de "Solo en Instancia" y se iniciaran inspecciones indeseadas en el mundo abierto.
+
+## [04/08/2026] v1.8.3 - Corrección de Inicialización Asíncrona y Nombre de Evento
+
+- **Corrección de error de carga y registro de eventos (`Core/Core.lua`)**:
+  - Solucionado el error `"attempt to call a nil value"` en `UI/Options.lua:302`.
+  - El error ocurría porque eventos síncronos (como `GROUP_ROSTER_UPDATE`) disparados por el cliente de WoW durante la pantalla de carga invocaban el script `OnEvent` antes de que se completara la lectura de todo el archivo `Core.lua`. Movidas todas las llamadas a `RegisterEvent` y `frame:SetScript("OnEvent", ...)` al final del archivo `Core.lua` para garantizar una inicialización robusta y libre de errores.
+  - Corregido el nombre del evento de Ready Check de `"READY_CHECK_START"` (que no es un evento real de WoW) al nombre nativo de la API: `"READY_CHECK"`, solucionando el error `"Attempt to register unknown event"`.
+
+## [04/08/2026] v1.8.2 - Escaneo Condicionado a Ready Check
+
+- **Escaneo de Talentos por Ready Check (`Core/Core.lua`)**:
+  - Modificado el módulo de escaneo de talentos para que, cuando la opción "Escanear talentos solo en Mazmorras/Raids" (`ScanOnlyInInstance`) esté activada, el escaneo periódico de talentos de grupo y la cola de inspección asíncrona se ejecuten **únicamente cuando se realiza un Ready Check** (`READY_CHECK_START`).
+  - Esto evita inspecciones automáticas en el mundo exterior o durante eventos recurrentes como cambios de roster, selección de objetivo o mouseover, limitando el escaneo estrictamente a mazmorras/bandas durante el ready check de preparación de pull.
 
 ## [14/07/2026] v1.8.1 - Prevención de Error de Rango y Opción de Instancia
 
